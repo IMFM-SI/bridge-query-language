@@ -1,6 +1,15 @@
-# query-language
+# Bridge query language
 
-## GitHub configuration
+## Installation
+
+Assuming you have installed Lean 4 and cloned the repository, run these comands:
+```
+lake update
+lake exe cache get
+lake build
+```
+
+## Additional instructions created by `lake`
 
 To set up your new GitHub repository, follow these steps:
 
