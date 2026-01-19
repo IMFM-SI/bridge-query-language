@@ -128,7 +128,7 @@ namespace MyDB
               | .size => c.size
               | .genus => c.genus
            )
-    exec := (fun (q : Query _ _ _ _) => pasture.filter (compile q) )
+    exec := (fun (q : Query _ _ _ _) => pasture.filter (fun _ => True) )
 
 end MyDB
 
