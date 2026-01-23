@@ -24,12 +24,14 @@ inductive Ty (Ground : Type) where
   | ground : Ground → Ty Ground
   | prod : Ty Ground → Ty Ground → Ty Ground
 
+def GroundModel (Ground : Type) := Ground → Type
+
 /-- Given an interpretation of ground types, we can interpret
     any type (code) as a Lean type. -/
-def Ty.interpret {G : Type} (I : G → Type) : Ty G → Type
+def Ty.interpret {G : Type} (GM : GroundModel G) : Ty G → Type
   | .unit => Unit
-  | .ground g => I g
-  | .prod t u => t.interpret I × u.interpret I
+  | .ground g => GM g
+  | .prod t u => t.interpret GM × u.interpret GM
 
 /-- An operation signature specifies which primitive operations
     can appear in the terms in queries. Typical examples might be
@@ -43,6 +45,9 @@ structure OpSignature (Ground : Type) where
   /-- the codomain of an operation symbol -/
   cod : op → Ty Ground
 
+def OpModel {G} (O : OpSignature G) (GM : GroundModel G) :=
+  ∀ (f : O.op), (O.dom f).interpret GM → (O.cod f).interpret GM
+
 /-- A predicate signature specifies which primitive predicates
     (relations) can appear in queries. Typical examples might
     be arithmetical comparison `<` and equality `=`.
@@ -54,6 +59,9 @@ structure PredSignature (Ground : Type) where
   pred : Type
   /-- the domain of a predicate symbol -/
   dom : pred → Ty Ground
+
+def PredModel {G} (P : PredSignature G) (GM : GroundModel G) :=
+  ∀ (p : P.pred), (P.dom p).interpret GM → Bool
 
 /-- The capabilities of a database are described by a signature.
     At present we just assume that each entry (mathematical object)
@@ -68,8 +76,12 @@ structure DBSignature (G : Type) where
   /-- the type of an attribute -/
   ty : attr → Ty G
 
+structure DBModel {G} (D : DBSignature G) (GM : GroundModel G) where
+  Obj : Type
+  get : Obj → ∀ (a : D.attr), (D.ty a).interpret GM
+
 /-- The terms that may appear in a query. -/
-inductive Tm {G : Type} (O : OpSignature G) (D : DBSignature G): Ty G → Type where
+inductive Tm {G : Type} (O : OpSignature G) (D : DBSignature G) : Ty G → Type where
 | tt : Tm O D Ty.unit
 | pair : ∀ {A B : Ty G}, Tm O D A → Tm O D B → Tm O D (.prod A B)
 | fst : ∀ {A B : Ty G}, Tm O D (.prod A B) → Tm O D A
@@ -77,25 +89,54 @@ inductive Tm {G : Type} (O : OpSignature G) (D : DBSignature G): Ty G → Type w
 | app : ∀ (f : O.op), Tm O D (O.dom f) → Tm O D (O.cod f)
 | get : ∀ (c : D.attr), Tm O D (D.ty c)
 
+def Tm.interpret {G : Type} {O : OpSignature G} {D : DBSignature G}
+                {GM : GroundModel G}
+                (OM : OpModel O GM)
+                (DM : DBModel D GM)
+                (obj : DM.Obj)
+                {ty : Ty G} :
+                Tm O D ty → Ty.interpret GM ty
+| .tt => .unit
+| .pair s t => (s.interpret OM DM obj, t.interpret OM DM obj)
+| .fst t => Prod.fst (t.interpret OM DM obj)
+| .snd t => Prod.snd (t.interpret OM DM obj)
+| .app f t => OM f (t.interpret OM DM obj)
+| .get a => DM.get obj a
 
 /-- A query is a logical formula. -/
 inductive Query {G : Type} (O : OpSignature G) (P : PredSignature G) (D : DBSignature G) where
-| fal : Query O P D
-| tru : Query O P D
+| false : Query O P D
+| true : Query O P D
 | conj : Query O P D → Query O P D → Query O P D
 | pred : ∀ (p : P.pred), Tm O D (P.dom p) → Query O P D
+
+def Query.interpret {G : Type} {O : OpSignature G} {P : PredSignature G} {D : DBSignature G}
+                {GM : GroundModel G}
+                (OM : OpModel O GM)
+                (PM : PredModel P GM)
+                (DM : DBModel D GM)
+                (obj : DM.Obj) :
+                Query O P D → Bool
+| .false => Bool.false
+| .true => Bool.true
+| .conj p q => p.interpret OM PM DM obj && q.interpret OM PM DM obj
+| .pred p t => PM p (t.interpret OM DM obj)
 
 /-- A database stores objects of a given type `Obj`. It specifies how
     the attributes are interpreted, and it can execute queries that fetch
     lists of objects. In the future we will likely replace lists with
     a more suitable datastructure, such as a stream or an iterator. -/
-structure DB {G : Type} (I : G → Type) (O : OpSignature G) (P : PredSignature G) (D : DBSignature G) where
+structure DB {G : Type} {O : OpSignature G} {P : PredSignature G} (D : DBSignature G)
+                {GM : GroundModel G}
+                (OM : OpModel O GM)
+                (PM : PredModel P GM)
+ where
   /-- The type of objects stored in the database -/
-  Obj : Type
-  /-- For a given object and an attribute, return its value -/
-  get : Obj → ∀ (a : D.attr), (D.ty a).interpret I
+  Model : DBModel D GM
   /-- Execute a query and return the list of objects satisfying it -/
-  exec : Query O P D → List Obj
+  exec : Query O P D → List Model.Obj
+  /-- Correctness of queries states: all objects that a query returns satisfy the query -/
+  correct : ∀ (q : Query O P D), (exec q).all (q.interpret OM PM Model)
 
 namespace Peano
   /-! An example of a query language that supports natural numbers,
@@ -103,10 +144,11 @@ namespace Peano
     and the attributes `size` and `genus` (this is made up).
   -/
 
-  inductive Ground where
-  | nat : Ground
+  /-- The only ground type is `.nat` -/
+  inductive G where
+  | nat : G
 
-  def Ground.interpret : Ground → Type
+  def GM : GroundModel G
   | .nat => Nat
 
   inductive Op where
@@ -114,34 +156,42 @@ namespace Peano
   | add : Op
 
   @[reducible]
-  def Op.dom : Op → Ty Ground
+  def Op.dom : Op → Ty G
   | .const _ => .unit
   | .add => .prod (.ground .nat) (.ground .nat)
 
   @[reducible]
-  def Op.cod : Op → Ty Ground
+  def Op.cod : Op → Ty G
   | .const _ => .ground .nat
   | .add => .ground .nat
 
   @[reducible]
-  def opSignature : OpSignature Ground where
+  def O : OpSignature G where
     op := Op
     dom := Op.dom
     cod := Op.cod
+
+  def OM : OpModel O GM
+  | .const n => (fun _ => n)
+  | .add => fun (p : Nat × Nat) => p.fst + p.snd
 
   inductive Pred where
   | eq : Pred
   | even : Pred
 
   @[reducible]
-  def Pred.dom : Pred → Ty Ground
+  def Pred.dom : Pred → Ty G
   | .eq => .prod (.ground .nat) (.ground .nat)
   | .even => .ground .nat
 
   @[reducible]
-  def predSignature : PredSignature Ground where
+  def P : PredSignature G where
     pred := Pred
     dom := Pred.dom
+
+  def PM : PredModel P GM
+  | .eq => (fun (p : Nat × Nat) => p.fst = p.snd)
+  | .even => (fun (n : Nat) => n.mod 2 = 0)
 
   inductive Attr where
   | size : Attr
@@ -149,12 +199,12 @@ namespace Peano
 
   /-- `size` returns natural numbers and `genus` returns pairs of natural numbers -/
   @[reducible]
-  def Attr.ty : Attr → Ty Ground
+  def Attr.ty : Attr → Ty G
   | .size => .ground .nat
   | .genus => .prod (.ground .nat) (.ground .nat)
 
   @[reducible]
-  def dbSignature : DBSignature Ground where
+  def D : DBSignature G where
     attr := Attr
     ty := Attr.ty
 
@@ -168,15 +218,16 @@ namespace MyDB
 
   /-- The database stores a bunch of cows, where each cow
       is given by a list of numbers and a genus. -/
-  structure Cow where
+  structure Obj where
     elems : List Nat
     genus : Nat × Nat
+  deriving Repr
 
   /-- The size of a cow is the length of its list. -/
-  def Cow.size (c : Cow) : Nat := c.elems.length
+  def Obj.size (c : Obj) : Nat := c.elems.length
 
   /-- The information stored in the database. -/
-  def pasture : List Cow := [
+  def pasture : List Obj := [
     { elems := [1,2,3,4],
       genus := (2, 3)},
     { elems := [1,2,3,4,5,6,7,8,9,20],
@@ -191,15 +242,21 @@ namespace MyDB
       genus := (1, 0)},
   ]
 
+  def DM : DBModel D GM where
+    Obj := Obj
+    get := (fun (o : Obj) (a : Attr) =>
+        match a with
+        | .size => o.size
+        | .genus => o.genus
+    )
+
   /-- The database -/
-  def CowDB : DB Ground.interpret opSignature predSignature dbSignature where
-    Obj := Cow
-    get := (fun (c : Cow) (a : Attr) => match a with
-              | .size => c.size
-              | .genus => c.genus
-           )
-    /- TODO implement this -/
-    exec := (fun (q : Query _ _ _) => pasture.filter (fun _ => True) )
+  def Pasture : DB D OM PM where
+    Model := DM
+    exec := (fun (q : Query O P D) => pasture.filter (q.interpret OM PM DM))
+    correct := by
+      intro q
+      grind
 
 end MyDB
 
@@ -208,21 +265,27 @@ section Example
       annoying at present, but we shall improve this bit. -/
 
   open Peano
+  open MyDB
 
   def ten :=
-    (.app (Op.const 10) .tt : Tm opSignature dbSignature _)
+    (.app (Op.const 10) .tt : Tm O D _)
 
   def get_size :=
-    (.get Attr.size : Tm opSignature dbSignature _)
+    (.get Attr.size : Tm O D _)
 
   def get_genus :=
-    (.get Attr.genus : Tm opSignature dbSignature _)
+    (.get Attr.genus : Tm O D _)
 
   -- query: objects of size 10 whose first component of genus is even
-  example: Query opSignature predSignature dbSignature :=
+  def my_query : Query O P D :=
     .conj
       (.pred .eq (.pair get_size ten))
       (.pred .even (.fst get_genus))
 
+  #eval Pasture.exec my_query
+
+  #eval Pasture.exec (.true)
+
+  #eval Pasture.exec (.false)
 
 end Example
