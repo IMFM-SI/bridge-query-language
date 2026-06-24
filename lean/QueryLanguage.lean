@@ -1,1 +1,2 @@
-import QueryLanguage.Basic
+import QueryLanguage.Core
+import QueryLanguage.DSL
