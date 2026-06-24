@@ -59,32 +59,44 @@ namespace Graph.SymObSmallDB
 
   /-! Running queries against the SQLite database -/
 
-  /-- A row fetched from the `graph` table: its `id`, `order` (number of
-      vertices), `size` (number of edges) and sparse6 encoding. -/
+  /-- A row fetched for a matching graph: its `order` (number of vertices),
+      `size` (number of edges), sparse6 encoding, and external references.
+
+      Rather than the internal database `id`, we report `refs`: the graph's
+      entries in the `graphexternalreference` table, aggregated into a single
+      comma-separated list of `source:id_source` (e.g. `"HoG:674"`). It is the
+      empty string when the graph has no external reference. -/
   structure Obj where
-    id      : Int
     order   : Int
     size    : Int
     sparse6 : String
+    refs    : String
   deriving Repr
 
   /-- Path to the database, relative to the `lean/` package directory
       (where `lake`/the editor runs `#eval`). -/
   def dbPath : System.FilePath := "../sqlite/sym-ob-small.db"
 
-  /-- The full SQL a query compiles to, for inspection. -/
+  /-- The full SQL a query compiles to, for inspection. Each matching graph is
+      returned once; its external references are pulled from
+      `graphexternalreference` (left-joined so graphs with none are still listed)
+      and aggregated into a single `source:id_source` list. -/
   def explain (q : Query O P D) : String :=
-    s!"SELECT id, \"order\", size, graph_in_sparse6 FROM graph WHERE {Query.toSQL q}"
+    "SELECT g.\"order\", g.size, g.graph_in_sparse6, " ++
+      "group_concat(r.source || ':' || r.id_source, ', ') AS refs " ++
+      "FROM graph g " ++
+      "LEFT JOIN graphexternalreference r ON r.graph_id = g.id " ++
+      s!"WHERE {Query.toSQL q} GROUP BY g.id"
 
   /-- Step a prepared `SELECT` to exhaustion, accumulating one `Obj` per row.
       `partial` because the number of result rows is not known statically. -/
   private partial def collect (stmt : SQLite.Stmt) (acc : Array Obj) : IO (Array Obj) := do
     if ← stmt.step then
       let o : Obj := {
-        id      := (← stmt.columnInt64 0).toInt
-        order   := (← stmt.columnInt64 1).toInt
-        size    := (← stmt.columnInt64 2).toInt
-        sparse6 := (← stmt.columnText 3)
+        order   := (← stmt.columnInt64 0).toInt
+        size    := (← stmt.columnInt64 1).toInt
+        sparse6 := (← stmt.columnText 2)
+        refs    := (← stmt.columnText 3)
       }
       collect stmt (acc.push o)
     else
