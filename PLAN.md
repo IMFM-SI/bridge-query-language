@@ -1,39 +1,162 @@
 # A query language for databases of mathematical objects
 
-We are going to design a query language that can be used by an AI agent or human
-to query databases of mathematical objects. The empahsis is on AI agents, who will
-access databases through MCP by issuing queries written in our query language.
+## Purpose
 
-There will be multiple databases, some might be local, some might be remote,
-and some might even be computed on the fly. The query langauge is the unifying interface.
+We are designing a query language for databases of mathematical objects.
+Its primary users are AI agents, which will reach the databases through MCP
+by issuing queries in this language; humans should be able to write it too.
 
-A database contains one or more tables, possibly related to each other, describing a collection
-of mathematical objects together with a selection of their invariants. The invariants may be complex.
-Some values may be missing (an invariant that is too hard to compute for a specific object).
+There will be many databases. Some live locally, some sit behind a network,
+and some need not be stored anywhere at all — we may one day expose a database
+that a tool *generates on the fly* (for example, enumerating graphs with
+nauty and computing their invariants on demand). The query language is the
+single interface that unifies all of them; nothing in it assumes that a query
+hits a stored table.
 
-Our query language should be robust with respect to such missing information, but perhaps the user should have the option of specifying whether they want to over- or under-approximate the results (if a value is missing, assume the basic attribute referencing it to be `false` or to be `true`?)
+## The interface is mathematical
 
-The mathematical content and the information available in a given database will be described
-in some standard way. This can be a Python class, for example, that tells how the query language
-connects to the database.
+This is the governing principle, and we hold to it throughout: **the interface
+presents mathematics, not a database.** An agent queries *mathematical
+objects* by their *mathematical invariants*. It works with domains, objects,
+and invariants alone; tables, columns, and joins stay on our side of the
+interface.
 
-From users's (an AI agent) point of view, the database appears as a collection of *mathematical objects*.
-The objects themselves thus need to be represented in some form that can be understood by the agent.
-For example, a graph may be represented by an adjancency list, a list of edges, or some other form.
-Perhaps we need to support several formats of output for the same database, and the user can choose one of them - but let's start simple.
+Concretely, the agent works against a **domain of objects** — `SmallGraphs`,
+`FiniteGroups`, `Maniplexes` — and refers to an object's invariants by their
+mathematical names (`num_vertices`, `chromatic_number`, `is_planar`). How a
+domain maps onto one or more tables, which joins compute a given invariant,
+which columns to read, and what to render — all of that is *our* job, hidden
+behind the interface. The agent asks a mathematical question; we compile it.
 
-A query should be a boolean expression whose atomic propositions are assertions about the invariants. For the time being, we do not want to allow referring to the object itself, only to the invariants stored in the database.
+## What a query looks like
 
-Everything should be well-typed, but the typing system should not be complicated.
+A query is a comprehension over a domain. Its filter and its returned value
+are both **terms** in a small typed language built from the objects'
+invariants:
 
-It is likely that not every query will be directly translated into SQL, in which case we would want to generate
-and SQL *over-approximation* (returns too many objects) which we then filter additionally. However, the first prototypes
-should not worry about this possibility.
+```
+{ return-term for g in Domain if condition }
+```
 
-We need to write the queries in some form that allows the user to explain what is searched, what is returned, in what order. Something like Python-style list comprehensions might work, for instance:
+Some examples in the provisional concrete syntax follow.
 
-    [ (g.chromatic_number, g.edgeList) for g in smallGraph.graph if (g.vertexSize < 5 && g.girth == 7) ].sorted(key=g.vertexSize)
+Connected non-planar graphs on at most 7 vertices, returning each graph
+together with its chromatic number:
 
-This is very Python-ish and possibly quite annoying to parse. It should be designed so that AI agents can write such queries,
-they're easy to parse, but they can also control things like "which objects from which database to search through", how to sort,
-how to limit the number of results, etc.
+```
+{ (g, g.chromatic_number) for g in SmallGraphs if g.is_connected && !g.is_planar }
+```
+
+Graphs whose radius is strictly less than their diameter, returning the degree
+sequence — a comparison may relate two invariants:
+
+```
+{ g.degree_sequence for g in SmallGraphs if g.radius < g.diameter }
+```
+
+Regular graphs whose girth exceeds twice the chromatic number:
+
+```
+{ g for g in SmallGraphs if g.is_regular && g.girth > 2 * g.chromatic_number }
+```
+
+A few points the examples make:
+
+- **The returned value is a term.** It may be the object itself (`g`, rendered
+  in some representation — adjacency list, edge list, graph6), a single
+  invariant, a derived quantity, or a tuple of these.
+- **Conditions are general boolean expressions** over comparisons of terms,
+  including invariant-to-invariant comparisons and arithmetic.
+- A condition is built from invariants; the object itself may also be
+  *returned* and rendered.
+
+Ordering and limiting the results are deliberately left out of the query
+itself: they shape the result stream rather than select objects, so they
+belong to a separate layer that wraps a query. We can introduce that layer
+later, with its own sort terms and a result bound, without changing the query
+language.
+
+An invariant can itself be a structured object with its own invariants, which
+is how relationships between domains appear mathematically — e.g. a maniplex's
+one-skeleton is a graph. Orientable maniplexes whose one-skeleton is bipartite:
+
+```
+{ m for m in Maniplexes if m.orientable && m.skeleton.is_bipartite }
+```
+
+The agent writes `m.skeleton.is_bipartite`; we discover that this needs a join
+from the maniplex table to the graph table along a foreign key.
+
+## Typing
+
+Every query is well-typed, but the type system stays simple: a handful of
+ground types (integers, booleans, strings, and structured values such as
+lists or polynomials carried as JSON), products for tuples, comparison and
+arithmetic operations over them. Ill-typed queries — comparing a boolean to an
+integer, naming an unknown invariant — are rejected with a readable error the
+agent can act on.
+
+## Missing values
+
+Invariants may be **missing**: a value too hard to compute for a particular
+object is simply absent. The language must stay robust in their presence.
+
+- **First prototypes use ordinary two-valued logic** and may ignore the
+  subtlety, treating a query over a missing value conservatively.
+- **The principled treatment is Kleene three-valued logic**: each atom is
+  `true`, `false`, or `unknown` (when an invariant it mentions is missing). We
+  evaluate the whole boolean structure in three values and let the user
+  collapse `unknown` at the very end with one chosen policy — *sound* (keep
+  only `true`; no false positives) or *complete* (keep `true` or `unknown`; no
+  false negatives). Collapsing only at the end is what keeps negation honest:
+  substituting `false` for a missing atom up front would make `!missing`
+  become `true` and quietly corrupt the answer.
+
+## What the compiler does
+
+Everything relational lives here, downstream of the mathematical terms. From
+the set of invariants the terms mention, the compiler:
+
+- discovers which tables or views hold them and assembles the necessary joins;
+- **translates** the part of the condition it can into SQL, and selects the
+  underlying columns needed to compute the return term;
+- evaluates in Python whatever does not translate — a *residual* filter — over
+  the rows the database returns;
+- renders the resulting objects in the chosen representation.
+
+When a condition cannot be fully translated, the compiler may translate an
+**over-approximation** to SQL (one that returns a superset) and apply the
+residual filter afterwards. The first prototypes need not do this; they may
+fetch a generous superset and filter in Python.
+
+## The schema descriptor
+
+A database is described in a standard way — for the Python prototype, a Python
+class or module — that the query language consumes. The descriptor maps each
+**mathematical invariant name** to how that invariant is *computed*: which
+table and column hold it, what join path reaches it, and what codec decodes the
+stored value (e.g. JSON text → a Python list or polynomial). It also declares
+the **representations** in which an object may be rendered for output. The
+compiler reads this map to turn a term over invariant names into a relational
+plan.
+
+## Delivery
+
+The engine — parser, type-checker, SQL translation, residual evaluation,
+rendering — is independent of how queries arrive. We will exercise it first
+behind a plain command-line interface, then wrap it in an MCP server that
+exposes two tools: `query`, taking a query and returning rendered objects, and
+`describe_schema`, returning a domain's objects, invariants with their types,
+and available representations, so an agent can learn what it may ask before it
+asks. MCP is then a thin adapter over the engine.
+
+## Notes on the prototype
+
+We will prototype in **Python** (checked with **mypy**), so that the
+machine-learning collaborators we expect can read and extend it. The Lean
+development under `lean/` remains the formal specification of the typed query
+language; the Python prototype is the executable bridge to real databases.
+Two small databases already exist under `data/` to query against:
+`graphs-small.db` (all graphs on up to 8 vertices, with invariants) and
+`sym-ob-small.db` (regular rank-4 maniplexes); each has a description file
+beside it.
