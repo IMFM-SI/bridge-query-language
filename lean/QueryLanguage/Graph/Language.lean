@@ -8,7 +8,7 @@ import QueryLanguage.DSL
     integers. We support numeral constants, addition, and the usual numeric
     comparisons `=`, `≤`, `<`, `≥`, `>`. The attributes are `order` and `size`. -/
 
-namespace Graph
+namespace Graph.Language
 
   /-- The only ground type is `.nat`. -/
   inductive G where
@@ -85,4 +85,4 @@ namespace Graph
     | `(⟦q| $t:query_tm >= $u:query_tm⟧) => `(Query.pred Pred.ge (Tm.pair ⟦tm| $t⟧ ⟦tm| $u⟧))
     | `(⟦q| $t:query_tm > $u:query_tm⟧)  => `(Query.pred Pred.gt (Tm.pair ⟦tm| $t⟧ ⟦tm| $u⟧))
 
-end Graph
+end Graph.Language

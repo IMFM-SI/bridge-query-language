@@ -6,7 +6,9 @@ import QueryLanguage.Graph.Language
     table in the SQLite database: its `order` (number of vertices) and its
     `size` (number of edges), both natural numbers. -/
 
-namespace Graph
+namespace Graph.SymObSmallSignature
+
+  open Graph.Language
 
   inductive Attr where
   | order : Attr
@@ -44,4 +46,4 @@ namespace Graph
   #reduce (⟦q| get_size <= 10 ⟧            : Query O P D)
   #reduce (⟦q| (get_order == 4) && (get_size < 6) ⟧ : Query O P D)
 
-end Graph
+end Graph.SymObSmallSignature

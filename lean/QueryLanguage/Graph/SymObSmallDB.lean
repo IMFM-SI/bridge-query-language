@@ -16,7 +16,7 @@ import SQLite
 
 namespace Graph.SymObSmallDB
 
-  open Graph
+  open Graph.Language Graph.SymObSmallSignature
 
   /-! Compiling queries to SQL
 

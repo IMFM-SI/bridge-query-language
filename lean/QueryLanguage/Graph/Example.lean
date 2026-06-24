@@ -4,9 +4,10 @@ import QueryLanguage.Graph.SymObSmallDB
     high-level DSL, compiled to SQL, and run against the real database
     `sqlite/sym-ob-small.db` (see `QueryLanguage.Graph.SymObSmallDB`). -/
 
-section Example
+namespace Graph.Example
 
-  open Graph
+  open Graph.Language
+  open Graph.SymObSmallSignature
   open Graph.SymObSmallDB
 
   /-- Run a query and print the compiled SQL, the number of matching graphs, and
@@ -50,4 +51,9 @@ section Example
     >> (get_order == 16) && (get_size == 32) <<
   #eval report q_no_refs
 
-end Example
+  -- six graphs of order 16, size 32: a mix of referenced and unreferenced ones
+  def q_no_refs_plus : Query O P D :=
+    >> (get_order == 9 + 7) && (get_size == 16 + 16) <<
+  #eval report q_no_refs
+
+end Graph.Example
