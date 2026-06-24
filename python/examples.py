@@ -9,8 +9,7 @@ Run from the repository root after generating `data/graphs-small.db`:
 
 from __future__ import annotations
 
-from mathql.databases.graphs import SMALL_GRAPHS
-from mathql.engine import run
+from mathql import catalog
 
 EXAMPLES = [
     ("Number of edges of each tree, by vertex count",
@@ -25,12 +24,16 @@ EXAMPLES = [
      "{ g.degree_sequence for g in SmallGraphs if g.radius < g.diameter }"),
     ("Complete graphs (every vertex adjacent to all others)",
      "{ g for g in SmallGraphs if g.is_connected && g.min_degree == g.num_vertices - 1 }"),
+    ("Schläfli symbols of the smallest maniplexes",
+     "{ m.schlafli_symbol for m in Maniplexes if m.size == 8 }"),
+    ("Flag counts of non-orientable polytopal maniplexes",
+     '{ m.size for m in Maniplexes if m.polytopality == "Polytopal" && !m.orientable }'),
 ]
 
 
 def main() -> None:
     for description, query in EXAMPLES:
-        results = run(query, SMALL_GRAPHS)
+        results = catalog.run(query)
         sample = results[0] if results else "(none)"
         print(description)
         print(f"    {query}")

@@ -3,33 +3,14 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import networkx as nx
 
-from mathql import schema
+from mathql import codecs, schema
 
 _DB_PATH = Path(__file__).resolve().parents[3] / "data" / "graphs-small.db"
-
-
-def _identity(value: Any) -> object:
-    return value
-
-
-def _boolean(value: Any) -> object:
-    return bool(value)
-
-
-def _optional_int(value: Any) -> object:
-    return None if value is None else int(value)
-
-
-def _json_value(value: Any) -> object:
-    return json.loads(value)
-
 
 _INTEGER = ("num_vertices", "num_edges", "min_degree", "max_degree",
             "num_components", "num_triangles", "clique_number",
@@ -40,18 +21,22 @@ _OPTIONAL_INTEGER = ("diameter", "radius", "girth")
 
 
 def _attributes() -> dict[str, schema.Attribute]:
-    by_decoder: list[tuple[tuple[str, ...], Callable[[Any], object]]] = [
-        (_INTEGER, _identity),
-        (_BOOLEAN, _boolean),
-        (_OPTIONAL_INTEGER, _optional_int),
-    ]
     attributes = {
-        name: schema.Attribute(column=name, decode=decode)
-        for names, decode in by_decoder
-        for name in names
+        name: schema.Attribute(column=name, decode=codecs.identity, kind="integer")
+        for name in _INTEGER
     }
-    attributes["graph6"] = schema.Attribute(column="graph6", decode=_identity)
-    attributes["degree_sequence"] = schema.Attribute(column="degree_sequence", decode=_json_value)
+    attributes.update(
+        (name, schema.Attribute(column=name, decode=codecs.boolean, kind="boolean"))
+        for name in _BOOLEAN
+    )
+    attributes.update(
+        (name, schema.Attribute(column=name, decode=codecs.optional_int, kind="integer or null"))
+        for name in _OPTIONAL_INTEGER
+    )
+    attributes["graph6"] = schema.Attribute(column="graph6", decode=codecs.identity, kind="string")
+    attributes["degree_sequence"] = schema.Attribute(
+        column="degree_sequence", decode=codecs.json_value, kind="list of integers"
+    )
     return attributes
 
 

@@ -5,10 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from mathql.databases.graphs import SMALL_GRAPHS
-from mathql.engine import run
-
-_DATABASES = {"graphs": SMALL_GRAPHS}
+from mathql import catalog
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -19,15 +16,11 @@ def main(argv: list[str] | None = None) -> None:
         "query",
         help='a MathQL query, e.g. "{ g.num_edges for g in SmallGraphs if g.is_tree }"',
     )
-    parser.add_argument(
-        "--database", choices=_DATABASES, default="graphs",
-        help="database to query (default: graphs)",
-    )
     parser.add_argument("--limit", type=int, help="print at most this many results")
     parser.add_argument("--count", action="store_true", help="print only the number of results")
     arguments = parser.parse_args(argv)
 
-    results = run(arguments.query, _DATABASES[arguments.database])
+    results = catalog.run(arguments.query)
     if arguments.count:
         print(len(results))
     else:

@@ -18,10 +18,12 @@ from typing import Any
 @dataclass(frozen=True)
 class Attribute:
     """One invariant of a domain's objects. `column` is the SQL column holding
-    it; `decode` turns a raw cell value into the Python value the query sees."""
+    it; `decode` turns a raw cell value into the Python value the query sees;
+    `kind` is a human-readable description of that value, e.g. `"integer"`."""
 
     column: str
     decode: Callable[[Any], object]
+    kind: str
 
 
 @dataclass(frozen=True)

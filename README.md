@@ -91,7 +91,11 @@ one against the small-graphs database and prints each result as JSON:
 mathql "{ (g.num_vertices, g.num_edges) for g in SmallGraphs if g.is_tree }"
 mathql --count "{ g for g in SmallGraphs if g.is_planar && g.is_connected }"
 mathql --limit 3 "{ g for g in SmallGraphs if g.num_vertices == 4 && g.is_regular }"
+mathql --count '{ m for m in Maniplexes if m.orientable && m.polytopality == "Polytopal" }'
 ```
+
+The domain named in the query (`SmallGraphs`, `Maniplexes`) selects the
+database; you never name a table or a file.
 
 `python/examples.py` runs a selection of queries with their result counts:
 
