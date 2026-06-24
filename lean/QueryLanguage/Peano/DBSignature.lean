@@ -2,7 +2,9 @@ import QueryLanguage.Peano.Language
 
 /-! The attributes and database signature for the made up Peano query language. -/
 
-namespace Peano
+namespace Peano.DBSignature
+
+  open Peano.Language
 
   inductive Attr where
   | size : Attr
@@ -17,7 +19,7 @@ namespace Peano
     attr := Attr
     ty := Attr.ty
 
-  /-! ### Surface syntax for the attributes -/
+  /-! Surface syntax for the attributes -/
 
   open DSL
 
@@ -28,7 +30,7 @@ namespace Peano
     | `(⟦tm| get_size⟧)  => `(Tm.getAttr Attr.size)
     | `(⟦tm| get_genus⟧) => `(Tm.getAttr Attr.genus)
 
-  /-! ### Examples -/
+  /-! Examples -/
 
   -- structural terms (`Ty.unit` is fixed by the ascription)
   #reduce (⟦tm| () ⟧                : Tm O D .unit)
@@ -47,4 +49,4 @@ namespace Peano
   #reduce (⟦q| 2 == 2 ⟧             : Query O P D)
   #reduce (⟦q| even 2 ⟧             : Query O P D)
 
-end Peano
+end Peano.DBSignature

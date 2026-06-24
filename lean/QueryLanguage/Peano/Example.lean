@@ -1,12 +1,13 @@
 import QueryLanguage.Peano.DBSignature
 import QueryLanguage.Peano.ExampleDB
 
-section Example
+namespace Peano.Example
   /-! Usage examples. Note that writing queries by hand is quite
       annoying at present, but we shall improve this bit. -/
 
-  open Peano
-  open ExampleDB
+  open Peano.Language
+  open Peano.DBSignature
+  open Peano.ExampleDB
 
   -- query: objects of size 10 whose first component of genus is even
   def my_query : Query O P D :=
@@ -30,4 +31,4 @@ section Example
   -- both queries produce the same result
   theorem equal_results : my_query = my_query_dsl := by rfl
 
-end Example
+end Peano.Example

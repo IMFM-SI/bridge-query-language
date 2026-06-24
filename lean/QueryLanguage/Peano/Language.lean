@@ -5,7 +5,7 @@ import QueryLanguage.DSL
     numeral constants, addition, equality, and the evenness predicate).
 -/
 
-namespace Peano
+namespace Peano.Language
 
   /-- The only ground type is `.nat` -/
   inductive G where
@@ -68,4 +68,4 @@ namespace Peano
     | `(⟦q| $t:query_tm == $u:query_tm⟧) => `(Query.pred Pred.eq (Tm.pair ⟦tm| $t⟧ ⟦tm| $u⟧))
     | `(⟦q| even $t:query_tm⟧)           => `(Query.pred Pred.even ⟦tm| $t⟧)
 
-end Peano
+end Peano.Language
