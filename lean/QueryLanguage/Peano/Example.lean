@@ -28,7 +28,7 @@ namespace Peano.Example
 
   #eval Pasture.exec my_query_dsl
 
-  -- both queries produce the same result
+  -- both queries are parsed the same
   theorem equal_results : my_query = my_query_dsl := by rfl
 
 end Peano.Example
