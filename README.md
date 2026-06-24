@@ -1,9 +1,9 @@
-# Mathematical query language
+# MathQL
 
-A query language for databases of mathematical objects. An agent (or a human)
-asks mathematical questions about mathematical objects — graphs, maniplexes,
-and more — and the engine compiles them against whatever database holds those
-objects. See [`PLAN.md`](PLAN.md) for the design and goals.
+MathQL is a query language for databases of mathematical objects. An agent (or
+a human) asks mathematical questions about mathematical objects — graphs,
+maniplexes, and more — and the engine compiles them against whatever database
+holds those objects. See [`PLAN.md`](PLAN.md) for the design and goals.
 
 ## Repository layout
 
