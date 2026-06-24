@@ -43,12 +43,20 @@ namespace Peano.ExampleDB
         | .genus => o.genus
     )
 
-  /-- The database -/
+  /-- Fetch the entire database. For this in-memory database the "fetch" is
+      trivial — we just lift the `pasture` list into `IO`. -/
+  def fetch : IO (List Obj) := pure pasture
+
+  /-- Execute a query: fetch all objects, then keep those satisfying the query.
+      Execution is `IO`-valued only to match the generic `DB` interface. -/
+  def exec (q : Query O P D) : IO (List Obj) :=
+    (List.filter (q.interpret OM PM DM)) <$> fetch
+
+  /-- The database. `correct` records that `exec` is `fetch` post-filtered by
+      the query's interpretation, so every returned object satisfies the query. -/
   def Pasture : DB D OM PM where
     Model := DM
-    exec := (fun (q : Query O P D) => pasture.filter (q.interpret OM PM DM))
-    correct := by
-      intro q
-      grind
+    exec := exec
+    correct := (fun _ => ⟨fetch, rfl⟩)
 
 end Peano.ExampleDB

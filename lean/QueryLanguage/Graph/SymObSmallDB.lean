@@ -9,10 +9,16 @@ import SQLite
     and then put it into `data/sym-ob-small.db` path at top level.
 
     We *compile* a `Query` into a SQL `WHERE` clause and let SQLite do the
-    filtering. This is why we do not instantiate the pure `DB` structure from
-    `QueryLanguage.Core` (whose `exec` is a pure function with a correctness
-    proof): the database lives behind `IO`, so execution is an `IO` action
-    instead. The compiler below is the bridge between the two worlds. -/
+    filtering. Because the database lives behind `IO`, execution is an `IO`
+    action; the compiler below is the bridge between the query DSL and SQL.
+
+    This instantiates the generic `DB` structure from `QueryLanguage.Core`,
+    whose `exec` is `IO`-valued precisely so that external stores like this one
+    fit alongside pure in-memory databases. To satisfy `DB.correct` we do not
+    rely on SQLite's `WHERE` for correctness: after fetching the candidate rows
+    we *re-filter* them in Lean by the query's interpretation, so that only
+    objects satisfying the query are returned and `correct` holds by
+    construction (the SQL `WHERE` is then merely an optimisation). -/
 
 namespace Graph.SymObSmallDB
 
@@ -74,6 +80,19 @@ namespace Graph.SymObSmallDB
     refs    : String
   deriving Repr
 
+  /-- Instantiating the generic `DB` structure.
+
+      Both attributes are natural numbers, so the database model reads `order`
+      and `size` off an `Obj` (as `Nat`, via `Int.toNat`; orders/sizes are nats. -/
+
+  def DM : DBModel D GM where
+    Obj := Obj
+    get := (fun (o : Obj) (a : Attr) =>
+        match a with
+        | .order => o.order.toNat
+        | .size  => o.size.toNat
+    )
+
   /-- Path to the database, relative to the `lean/` package directory
       (where `lake`/the editor runs `#eval`). -/
   def dbPath : System.FilePath := "../data/sym-ob-small.db"
@@ -103,11 +122,24 @@ namespace Graph.SymObSmallDB
     else
       return acc
 
-  /-- Execute a query: open the database read-only, run the compiled
-      `SELECT … FROM graph WHERE <query>`, and collect the matching rows. -/
-  def exec (q : Query O P D) : IO (List Obj) := do
+  /-- Fetch candidate rows: open the database read-only, run the compiled
+      `SELECT … FROM graph WHERE <query>`, and collect the resulting rows. -/
+  def fetch (q : Query O P D) : IO (List Obj) := do
     let db ← SQLite.openWith dbPath .readonly
     let stmt ← SQLite.prepare db (explain q)
     return (← collect stmt #[]).toList
+
+  /-- Execute a query: `fetch` the candidate rows, then keep only those that
+      satisfy the query under its Lean interpretation. The in-Lean filter is
+      what makes `DB.correct` provable; SQLite's `WHERE` makes it efficient. -/
+  def exec (q : Query O P D) : IO (List Obj) :=
+    (List.filter (q.interpret OM PM DM)) <$> fetch q
+
+  /-- The database. `correct` records that `exec` is `fetch` post-filtered by
+      the query's interpretation, so every returned object satisfies the query. -/
+  def SymObSmall : DB D OM PM where
+    Model := DM
+    exec := exec
+    correct := (fun q => ⟨fetch q, rfl⟩)
 
 end Graph.SymObSmallDB

@@ -169,7 +169,16 @@ structure DB {G : Type} {O : OpSignature G} {P : PredSignature G}
  where
   /-- The type of objects stored in the database -/
   Model : DBModel D GM
-  /-- Execute a query and return the list of objects satisfying it -/
-  exec : Query O P D → List Model.Obj
-  /-- Correctness of queries states: all objects that a query returns satisfy the query -/
-  correct : ∀ (q : Query O P D), (exec q).all (q.interpret OM PM Model)
+  /-- Execute a query and return the list of objects satisfying it. Execution
+      lives in `IO`, because the database may be an external store. -/
+  exec : Query O P D → IO (List Model.Obj)
+  /-- Correctness of queries: `exec` returns only objects satisfying the query.
+      Since `exec q` is an `IO` action, we cannot inspect its result directly;
+      instead we record that it factors as a *raw fetch* from the backing store
+      followed by a pure filter by the query's interpretation. Filtering keeps
+      exactly the satisfying objects, so every object `exec q` returns satisfies
+      `q`. (For an in-memory database the fetch is trivial; for an external one
+      it is the underlying query against the store.) -/
+  correct : ∀ (q : Query O P D),
+    ∃ fetch : IO (List Model.Obj),
+      exec q = (List.filter (q.interpret OM PM Model)) <$> fetch
