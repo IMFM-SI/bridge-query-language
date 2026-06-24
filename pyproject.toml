@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathql"
+version = "0.1.0"
+description = "A query language for databases of mathematical objects."
+requires-python = ">=3.10"
+dependencies = ["lark", "networkx", "mcp"]
+
+[project.optional-dependencies]
+dev = ["mypy", "pytest", "hypothesis"]
+
+[project.scripts]
+mathql = "mathql.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["mathql*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]
+testpaths = ["python/tests"]

@@ -29,18 +29,20 @@ SQLite needs no installation — it comes with Python's standard library.
 
 ## Setup
 
-Create and activate a virtual environment, then install the Python packages:
+Create and activate a virtual environment, then install the project (with its
+development extras) in editable mode:
 
 ```
 python3 -m venv .venv
 source .venv/bin/activate          # bash / zsh;  Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install networkx mypy pytest hypothesis lark mcp
+python -m pip install -e ".[dev]"
 ```
 
-The packages: `networkx` (graph invariants for the generator), `mypy`
-(type-checking), `pytest` and `hypothesis` (the test suite), `lark` (the query
-parser), and `mcp` (the MCP server adapter).
+This installs the `mathql` package, its dependencies (`lark` for parsing,
+`networkx` for graph invariants, `mcp` for the server adapter), and the
+development tools (`mypy`, `pytest`, `hypothesis`). The dependencies are
+declared in [`pyproject.toml`](pyproject.toml).
 
 Activate the environment (`source .venv/bin/activate`) in every new shell
 before working on the project.
@@ -73,22 +75,39 @@ With the environment active:
 
 ```
 geng 3                                        # prints the 4 graphs on 3 vertices
-python -c "import networkx, lark; print('python deps ok')"
+python -c "import mathql, networkx, lark; print('imports ok')"
 python python/generate_graphs.py 5            # builds data/graphs-small.db (if absent)
 sqlite3 data/graphs-small.db "SELECT num_vertices, COUNT(*) FROM graph GROUP BY num_vertices;"
 ```
 
 The last query should report 1, 2, 4, 11, 34 graphs for 1 … 5 vertices.
 
+## Running queries
+
+A query is a comprehension over a domain of objects. The `mathql` command runs
+one against the small-graphs database and prints each result as JSON:
+
+```
+mathql "{ (g.num_vertices, g.num_edges) for g in SmallGraphs if g.is_tree }"
+mathql --count "{ g for g in SmallGraphs if g.is_planar && g.is_connected }"
+mathql --limit 3 "{ g for g in SmallGraphs if g.num_vertices == 4 && g.is_regular }"
+```
+
+`python/examples.py` runs a selection of queries with their result counts:
+
+```
+python python/examples.py
+```
+
 ## Development
 
 ```
-mypy python/                                  # type-check the prototype
+mypy python/mathql                            # type-check the engine
 pytest                                        # run the test suite
 ```
 
-The query-language engine itself is under active development; the generators
-and databases above are in place to build and test it against.
+The engine is a first prototype: parsing, SQL compilation, and execution work,
+while the type-checking phase is currently a stub that accepts every query.
 
 ## The Lean formalisation
 
