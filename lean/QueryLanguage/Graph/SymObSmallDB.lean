@@ -5,7 +5,8 @@ import SQLite
     language, accessed through the `leanprover/leansqlite` package.
 
     NOTE: Because of its size, the database file is currently not in the
-    repository. You should put it into `sqlite/sym-ob-small.db` at top level.
+    repository. You get it from `https://www.andrej.com/tmp/sym-ob-small.db`
+    and then put it into `sqlite/sym-ob-small.db` path at top level.
 
     We *compile* a `Query` into a SQL `WHERE` clause and let SQLite do the
     filtering. This is why we do not instantiate the pure `DB` structure from
