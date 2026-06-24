@@ -1,4 +1,5 @@
 lean/.lake
+MathQL/.lake
 .venv/
 __pycache__/
 *.egg-info/
