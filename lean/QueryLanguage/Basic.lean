@@ -1,16 +1,18 @@
 /-!
-  This is a core setup for a query language thats acts as an interface
-  between Lean and a database. There is no presumption here about how the
-  database is implemented, we only assume that it knows how to execute
-  queries.
+  This is a core setup for a query language thats acts as an interface between
+  Lean and a database. There is no presumption here about how the database is
+  implemented, we only assume that it knows how to execute queries.
 
-  The end user would not use these types directly. There will be another
-  layer that translates user queries.
+  The end user would not use these types directly. There will be another layer
+  that translates user queries.
 
-  Everything below is a scaffolding that needs to be fleshed out.
-  (For example, there is only conjunction, but it should be easy to add more logic.)
+  Everything below is a scaffolding that needs to be fleshed out. (For example,
+  there is only conjunction, but it should be easy to add more logic.)
+
+  PS. This is an improved version over Base.lean that uses typeclass resolution
+  over unification for figuring out which types subterms should have, and thus
+  avoids having to explicitly let-bind more complex subterms for typechecking.
 -/
-
 
 /-- The types of terms appearing in a query. It is parameterized by
     a type of ground types that the database knows about. At present
@@ -48,6 +50,19 @@ structure OpSignature (Ground : Type) where
 def OpModel {G} (O : OpSignature G) (GM : GroundModel G) :=
   ∀ (f : O.op), (O.dom f).interpret GM → (O.cod f).interpret GM
 
+/-- Computes the codomain type of an operation via instance resolution.
+    The `outParam` ensures `T` is determined by synthesising an instance
+    for the *known* `f`, not by unifying against an expected type.  This
+    lets `Tm.call f t` elaborate correctly when used inline, because
+    by the time instance search runs, the explicit argument `f` is
+    already resolved and `O.cod f` can be reduced. -/
+class OpCod {G : Type} (O : OpSignature G)
+            (f : O.op) (T : outParam (Ty G)) : Prop where
+  cod_eq : O.cod f = T
+
+instance {G} {O : OpSignature G} {f : O.op} : OpCod O f (O.cod f) :=
+  ⟨rfl⟩
+
 /-- A predicate signature specifies which primitive predicates
     (relations) can appear in queries. Typical examples might
     be arithmetical comparison `<` and equality `=`.
@@ -80,6 +95,17 @@ structure DBModel {G} (D : DBSignature G) (GM : GroundModel G) where
   Obj : Type
   get : Obj → ∀ (a : D.attr), (D.ty a).interpret GM
 
+/-- Computes the type of a database attribute via instance resolution.
+    Mirrors `OpCod`: by the time instance search runs for `Tm.getAttr c`,
+    the explicit argument `c` is already resolved, so `D.ty c` reduces
+    to the concrete `Ty G` value. -/
+class DBAttrTy {G : Type} (D : DBSignature G)
+               (c : D.attr) (T : outParam (Ty G)) : Prop where
+  ty_eq : D.ty c = T
+
+instance {G} {D : DBSignature G} {c : D.attr} : DBAttrTy D c (D.ty c) :=
+  ⟨rfl⟩
+
 /-- The terms that may appear in a query. -/
 inductive Tm {G : Type} (O : OpSignature G) (D : DBSignature G) : Ty G → Type where
 | tt : Tm O D Ty.unit
@@ -90,18 +116,35 @@ inductive Tm {G : Type} (O : OpSignature G) (D : DBSignature G) : Ty G → Type 
 | get : ∀ (c : D.attr), Tm O D (D.ty c)
 
 def Tm.interpret {G : Type} {O : OpSignature G} {D : DBSignature G}
-                {GM : GroundModel G}
-                (OM : OpModel O GM)
-                (DM : DBModel D GM)
-                (obj : DM.Obj)
-                {ty : Ty G} :
-                Tm O D ty → Ty.interpret GM ty
+                 {GM : GroundModel G}
+                 (OM : OpModel O GM)
+                 (DM : DBModel D GM)
+                 (obj : DM.Obj)
+                 {ty : Ty G} :
+                 Tm O D ty → Ty.interpret GM ty
 | .tt => .unit
 | .pair s t => (s.interpret OM DM obj, t.interpret OM DM obj)
 | .fst t => Prod.fst (t.interpret OM DM obj)
 | .snd t => Prod.snd (t.interpret OM DM obj)
 | .app f t => OM f (t.interpret OM DM obj)
 | .get a => DM.get obj a
+
+/-- Call an operation, with output type determined by `OpCod` instance
+    resolution rather than by unification.  Because `Tm.call` is a `def`,
+    the explicit argument `f` is resolved before the return type is checked,
+    so `OpCod O f T` can be synthesised with `f` concrete, yielding the
+    fully-reduced `T`.  This makes `Tm.call f t` usable inline in larger
+    query expressions without type annotations. -/
+def Tm.call {G : Type} {O : OpSignature G} {D : DBSignature G} {T : Ty G}
+            (f : O.op) [h : OpCod O f T] (t : Tm O D (O.dom f)) : Tm O D T :=
+  h.cod_eq ▸ Tm.app f t
+
+/-- Get a database attribute, with the attribute type determined by
+    `DBAttrTy` instance resolution.  Same elaboration-order guarantee as
+    `Tm.call`: `c` is resolved before `T` is computed. -/
+def Tm.getAttr {G : Type} {O : OpSignature G} {D : DBSignature G} {T : Ty G}
+               (c : D.attr) [h : DBAttrTy D c T] : Tm O D T :=
+  h.ty_eq ▸ Tm.get c
 
 /-- A query is a logical formula. -/
 inductive Query {G : Type} (O : OpSignature G) (P : PredSignature G) (D : DBSignature G) where
@@ -110,13 +153,10 @@ inductive Query {G : Type} (O : OpSignature G) (P : PredSignature G) (D : DBSign
 | conj : Query O P D → Query O P D → Query O P D
 | pred : ∀ (p : P.pred), Tm O D (P.dom p) → Query O P D
 
-def Query.interpret {G : Type} {O : OpSignature G} {P : PredSignature G} {D : DBSignature G}
-                {GM : GroundModel G}
-                (OM : OpModel O GM)
-                (PM : PredModel P GM)
-                (DM : DBModel D GM)
-                (obj : DM.Obj) :
-                Query O P D → Bool
+def Query.interpret {G : Type} {O : OpSignature G} {P : PredSignature G}
+                    {D : DBSignature G} {GM : GroundModel G}
+                    (OM : OpModel O GM) (PM : PredModel P GM) (DM : DBModel D GM)
+                    (obj : DM.Obj) : Query O P D → Bool
 | .false => Bool.false
 | .true => Bool.true
 | .conj p q => p.interpret OM PM DM obj && q.interpret OM PM DM obj
@@ -126,10 +166,9 @@ def Query.interpret {G : Type} {O : OpSignature G} {P : PredSignature G} {D : DB
     the attributes are interpreted, and it can execute queries that fetch
     lists of objects. In the future we will likely replace lists with
     a more suitable datastructure, such as a stream or an iterator. -/
-structure DB {G : Type} {O : OpSignature G} {P : PredSignature G} (D : DBSignature G)
-                {GM : GroundModel G}
-                (OM : OpModel O GM)
-                (PM : PredModel P GM)
+structure DB {G : Type} {O : OpSignature G} {P : PredSignature G}
+             (D : DBSignature G) {GM : GroundModel G}
+             (OM : OpModel O GM) (PM : PredModel P GM)
  where
   /-- The type of objects stored in the database -/
   Model : DBModel D GM
@@ -155,17 +194,14 @@ namespace Peano
   | const : Nat → Op
   | add : Op
 
-  @[reducible]
   def Op.dom : Op → Ty G
   | .const _ => .unit
   | .add => .prod (.ground .nat) (.ground .nat)
 
-  @[reducible]
   def Op.cod : Op → Ty G
   | .const _ => .ground .nat
   | .add => .ground .nat
 
-  @[reducible]
   def O : OpSignature G where
     op := Op
     dom := Op.dom
@@ -179,12 +215,10 @@ namespace Peano
   | eq : Pred
   | even : Pred
 
-  @[reducible]
   def Pred.dom : Pred → Ty G
   | .eq => .prod (.ground .nat) (.ground .nat)
   | .even => .ground .nat
 
-  @[reducible]
   def P : PredSignature G where
     pred := Pred
     dom := Pred.dom
@@ -198,12 +232,10 @@ namespace Peano
   | genus : Attr
 
   /-- `size` returns natural numbers and `genus` returns pairs of natural numbers -/
-  @[reducible]
   def Attr.ty : Attr → Ty G
   | .size => .ground .nat
   | .genus => .prod (.ground .nat) (.ground .nat)
 
-  @[reducible]
   def D : DBSignature G where
     attr := Attr
     ty := Attr.ty
@@ -267,25 +299,12 @@ section Example
   open Peano
   open MyDB
 
-  def ten :=
-    (.app (Op.const 10) .tt : Tm O D _)
-
-  def get_size :=
-    (.get Attr.size : Tm O D _)
-
-  def get_genus :=
-    (.get Attr.genus : Tm O D _)
-
   -- query: objects of size 10 whose first component of genus is even
   def my_query : Query O P D :=
     .conj
-      (.pred .eq (.pair get_size ten))
-      (.pred .even (.fst get_genus))
+      (.pred .eq (.pair (.getAttr .size) (.call (.const 10) .tt)))
+      (.pred .even (.fst (.getAttr .genus)))
 
   #eval Pasture.exec my_query
-
-  #eval Pasture.exec (.true)
-
-  #eval Pasture.exec (.false)
 
 end Example
