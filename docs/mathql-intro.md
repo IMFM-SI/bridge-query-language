@@ -136,10 +136,11 @@ foreign key gives an unambiguous answer, and refuses to silently bridge two.
 ## Where we are, and what is next
 
 The prototype is real and runs today: two databases, a parser, a
-compile-to-SQL engine with a Python fallback, a command-line tool, and a test
-suite. It is written in Python (so our machine-learning collaborators can read
-and extend it), while a Lean development serves as the formal specification of
-the typed language.
+compile-to-SQL engine with a Python fallback, a command-line tool, a test
+suite, and an MCP server that exposes MathQL as a tool an AI agent can call. It
+is written in Python (so our machine-learning collaborators can read and extend
+it), while a Lean development serves as the formal specification of the typed
+language.
 
 Next on the list:
 
@@ -147,7 +148,6 @@ Next on the list:
   — e.g. a maniplex's 1-skeleton and *its* invariants.
 - **Three-valued logic** for missing data, letting a caller choose between
   "no false positives" and "no false negatives".
-- **An MCP server**, so an AI agent can call MathQL directly as a tool.
 
 We would love your feedback — on the query syntax, on which invariants and
 which databases would be most useful, and on whether this is the right shape

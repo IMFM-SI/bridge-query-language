@@ -17,3 +17,10 @@ def test_routes_domain_to_its_database():
 def test_unknown_domain_raises():
     with pytest.raises(KeyError):
         catalog.database_for("Nonexistent")
+
+
+def test_describe_lists_invariants():
+    described = catalog.describe()
+    assert {"SmallGraphs", "Maniplexes"} <= set(described)
+    graph_invariants = {entry["name"] for entry in described["SmallGraphs"]["invariants"]}
+    assert {"chromatic_number", "is_planar", "degree_sequence"} <= graph_invariants

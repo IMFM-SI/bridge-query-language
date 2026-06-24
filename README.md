@@ -103,6 +103,22 @@ database; you never name a table or a file.
 python python/examples.py
 ```
 
+## MCP server
+
+`mathql-mcp` starts an MCP server (stdio transport) so an AI agent can use
+MathQL as a tool. It exposes two tools:
+
+- `describe_schema` — the domains available and the invariants each provides,
+  so a query can be written without knowing any storage details;
+- `query` — run a MathQL query and return its results.
+
+Point an MCP client at the `mathql-mcp` command (the one in the project's
+virtual environment), for example with a client configuration entry:
+
+```json
+{ "command": "/path/to/.venv/bin/mathql-mcp" }
+```
+
 ## Development
 
 ```

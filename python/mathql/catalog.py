@@ -30,3 +30,17 @@ def database_for(domain: str) -> schema.Database:
 def run(text: str) -> list[object]:
     """Execute a query against whichever catalog database provides its domain."""
     return engine.run(text, database_for(parse(text).domain))
+
+
+def describe() -> dict[str, object]:
+    """Every domain and the invariants it offers (name and kind), so a query can
+    be written without knowing any storage details."""
+    return {
+        name: {
+            "invariants": [
+                {"name": invariant, "kind": attribute.kind}
+                for invariant, attribute in domain.attributes.items()
+            ]
+        }
+        for name, domain in domains().items()
+    }

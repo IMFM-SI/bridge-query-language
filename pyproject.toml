@@ -14,6 +14,7 @@ dev = ["mypy", "pytest", "hypothesis"]
 
 [project.scripts]
 mathql = "mathql.cli:main"
+mathql-mcp = "mathql.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["python"]
