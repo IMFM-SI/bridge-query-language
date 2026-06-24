@@ -1,12 +1,12 @@
 import QueryLanguage.Graph.SymObSmallDBSignature
 import SQLite
 
-/-! The concrete database `sqlite/sym-ob-small.db` for the `Graph` query
+/-! The concrete database `data/sym-ob-small.db` for the `Graph` query
     language, accessed through the `leanprover/leansqlite` package.
 
     NOTE: Because of its size, the database file is currently not in the
     repository. You get it from `https://www.andrej.com/tmp/sym-ob-small.db`
-    and then put it into `sqlite/sym-ob-small.db` path at top level.
+    and then put it into `data/sym-ob-small.db` path at top level.
 
     We *compile* a `Query` into a SQL `WHERE` clause and let SQLite do the
     filtering. This is why we do not instantiate the pure `DB` structure from
@@ -76,7 +76,7 @@ namespace Graph.SymObSmallDB
 
   /-- Path to the database, relative to the `lean/` package directory
       (where `lake`/the editor runs `#eval`). -/
-  def dbPath : System.FilePath := "../sqlite/sym-ob-small.db"
+  def dbPath : System.FilePath := "../data/sym-ob-small.db"
 
   /-- The full SQL a query compiles to, for inspection. Each matching graph is
       returned once; its external references are pulled from
