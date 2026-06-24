@@ -54,6 +54,15 @@ namespace Graph.Example
   -- six graphs of order 16, size 32: a mix of referenced and unreferenced ones
   def q_no_refs_plus : Query O P D :=
     >> (get_order == 9 + 7) && (get_size == 16 + 16) <<
-  #eval report q_no_refs
+  #eval report q_no_refs_plus
+
+  /-- `q_no_refs` and `q_no_refs_plus` are *semantically* the same query: they
+      denote the same predicate. The only difference is that one writes the
+      constants `16`/`32` directly while the other writes `9 + 7`/`16 + 16`, and
+      those already evaluate (in Lean, via `OM`) to `16`/`32`. So on every
+      database object the two queries return the same verdict, and `rfl` suffices. -/
+  theorem q_no_refs_eq_q_no_refs_plus {DM : DBModel D GM} (o : DM.Obj) :
+      q_no_refs.interpret OM PM DM o = q_no_refs_plus.interpret OM PM DM o :=
+    rfl
 
 end Graph.Example
