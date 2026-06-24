@@ -1,4 +1,5 @@
 lean/.lake
+.venv/
 *.db
 *.db-shm
 *.db-wal
