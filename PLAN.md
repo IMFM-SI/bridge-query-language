@@ -150,13 +150,68 @@ exposes two tools: `query`, taking a query and returning rendered objects, and
 and available representations, so an agent can learn what it may ask before it
 asks. MCP is then a thin adapter over the engine.
 
-## Notes on the prototype
+## Implementation
 
-We will prototype in **Python** (checked with **mypy**), so that the
-machine-learning collaborators we expect can read and extend it. The Lean
-development under `lean/` remains the formal specification of the typed query
-language; the Python prototype is the executable bridge to real databases.
-Two small databases already exist under `data/` to query against:
-`graphs-small.db` (all graphs on up to 8 vertices, with invariants) and
-`sym-ob-small.db` (regular rank-4 maniplexes); each has a description file
-beside it.
+We implement the engine in **Lean**, so that the implementation *is* the
+specification: the elaborator produces the typed term `Tm`, the interpreter is
+`Tm.interpret`, and the SQL compilation can eventually be proved sound against
+`Query.interpret`. The full language is defined in [`LANGUAGE.md`](LANGUAGE.md).
+**Python** is kept only for what it is best at — generating databases
+(`nauty` + `networkx`) and hosting a thin MCP server that forwards to the Lean
+executable. SQLite is reached through the **leansqlite** FFI binding, which
+bundles the SQLite amalgamation and supports bound parameters; the project's
+Lean toolchain is conformed to whatever leansqlite requires.
+
+Architecture:
+
+- **Lean executable `mathql`** — the engine: parse → elaborate to `Tm` →
+  compile to SQL → run via leansqlite → decode, apply the residual filter,
+  render. Two modes: a one-shot CLI (`mathql "<query>"`) and a serve mode that
+  reads queries and writes JSON for the MCP server to drive.
+- **Python** — `generate_graphs.py` (unchanged) and an MCP server that spawns
+  the Lean executable in serve mode and forwards `query` / `describe_schema`.
+- **leansqlite** — the one new dependency.
+
+Steps (each a commit; carried out after this file is reviewed):
+
+0. **(needs you)** Provide what I cannot fetch myself: a fork or repository URL
+   of leansqlite to depend on, and confirmation that I may add it to the
+   lakefile and move the Lean toolchain to match it. Confirm both databases are
+   present under `data/` (`graphs-small.db` generated, `sym-ob-small.db`
+   downloaded). Note anything else I will need (GAP, credentials, …).
+
+1. **Lake skeleton** — extend the existing `lean/` project with a `mathql`
+   library and executable depending on leansqlite and `Cli`, toolchain
+   conformed; verify a trivial `SELECT 1` round-trips through leansqlite.
+
+2. **Concrete syntax and elaborator** — the syntax of `LANGUAGE.md` via Lean
+   metaprogramming (`declare_syntax_cat` + `elab`, building on `DSL.lean`),
+   bidirectionally elaborating into the `Tm` of `Core.lean`, with positioned
+   type errors.
+
+3. **Schema and realization** — represent each domain's record signature and
+   its realization (table, per-field column and codec, enum constructor⇄value
+   maps); declare `SmallGraphs` and `Maniplexes`.
+
+4. **Compiler** — `Tm` / query → SQL with bound parameters; whatever does not
+   translate becomes a residual evaluated in Lean.
+
+5. **Engine** — run the SQL through leansqlite, decode rows by codec, apply the
+   residual, evaluate the returned term, render objects.
+
+6. **CLI and serve mode** — `mathql "<query>"` and the protocol the MCP server
+   drives.
+
+7. **Prelude** — `count`, `sum`, `max`, … as definitions over `fold`.
+
+8. **Tests and examples** — port the Python suite: elaborator, compiler, and
+   end-to-end queries against a small fixture and against `graphs-small.db`.
+
+9. **Python MCP server** — forward `query` / `describe_schema` to the Lean
+   serve mode; retire the Python engine once the Lean engine is at parity
+   (generation stays in Python).
+
+Verification throughout: build with `lake`, run the `LANGUAGE.md` example
+queries against `data/graphs-small.db`, and check counts against known answers
+(1, 2, 4, 11, 34, 156, 1044, 12346 graphs by vertex count; 48 trees; K₈ with
+28 edges; 13 214 orientable maniplexes), alongside the ported test suite.
