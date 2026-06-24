@@ -14,7 +14,7 @@ namespace Graph.Example
       one line per graph: its external reference(s), `order` and `size`. -/
   def report (q : Query O P D) : IO Unit := do
     IO.println s!"SQL: {explain q}"
-    let rows ← exec q
+    let rows ← SymObSmall.exec q
     IO.println s!"→ {rows.length} graph(s):"
     for g in rows do
       let ref := if g.refs.isEmpty then "(no external reference)" else g.refs
