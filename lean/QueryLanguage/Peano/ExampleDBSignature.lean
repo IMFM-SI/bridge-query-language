@@ -2,7 +2,7 @@ import QueryLanguage.Peano.Language
 
 /-! The attributes and database signature for the made up Peano query language. -/
 
-namespace Peano.DBSignature
+namespace Peano.ExampleDBSignature
 
   open Peano.Language
 
@@ -49,4 +49,4 @@ namespace Peano.DBSignature
   #reduce (⟦q| 2 == 2 ⟧             : Query O P D)
   #reduce (⟦q| even 2 ⟧             : Query O P D)
 
-end Peano.DBSignature
+end Peano.ExampleDBSignature

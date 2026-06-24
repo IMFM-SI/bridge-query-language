@@ -1,4 +1,4 @@
-import QueryLanguage.Graph.SymObSmallSignature
+import QueryLanguage.Graph.SymObSmallDBSignature
 import SQLite
 
 /-! The concrete database `sqlite/sym-ob-small.db` for the `Graph` query
@@ -16,7 +16,7 @@ import SQLite
 
 namespace Graph.SymObSmallDB
 
-  open Graph.Language Graph.SymObSmallSignature
+  open Graph.Language Graph.SymObSmallDBSignature
 
   /-! Compiling queries to SQL
 

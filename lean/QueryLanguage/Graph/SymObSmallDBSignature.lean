@@ -6,7 +6,7 @@ import QueryLanguage.Graph.Language
     table in the SQLite database: its `order` (number of vertices) and its
     `size` (number of edges), both natural numbers. -/
 
-namespace Graph.SymObSmallSignature
+namespace Graph.SymObSmallDBSignature
 
   open Graph.Language
 
@@ -46,4 +46,4 @@ namespace Graph.SymObSmallSignature
   #reduce (⟦q| get_size <= 10 ⟧            : Query O P D)
   #reduce (⟦q| (get_order == 4) && (get_size < 6) ⟧ : Query O P D)
 
-end Graph.SymObSmallSignature
+end Graph.SymObSmallDBSignature

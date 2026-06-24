@@ -1,13 +1,13 @@
-import QueryLanguage.Peano.DBSignature
+import QueryLanguage.Peano.ExampleDBSignature
 
 /-! A small concrete database over the `Peano` query language, implemented
     as a list of objects, instantiating the shared attributes and database
-    signature `D` from `QueryLanguage.Peano.DBSignature`. -/
+    signature `D` from `QueryLanguage.Peano.ExampleDBSignature`. -/
 
 namespace Peano.ExampleDB
   /-! A small database, implemented simply as a list of objects. -/
 
-  open Peano.Language Peano.DBSignature
+  open Peano.Language Peano.ExampleDBSignature
 
   /-- The database stores a bunch of cows, where each cow
       is given by a list of numbers and a genus. -/

@@ -1,4 +1,4 @@
-import QueryLanguage.Peano.DBSignature
+import QueryLanguage.Peano.ExampleDBSignature
 import QueryLanguage.Peano.ExampleDB
 
 namespace Peano.Example
@@ -6,7 +6,7 @@ namespace Peano.Example
       annoying at present, but we shall improve this bit. -/
 
   open Peano.Language
-  open Peano.DBSignature
+  open Peano.ExampleDBSignature
   open Peano.ExampleDB
 
   -- query: objects of size 10 whose first component of genus is even

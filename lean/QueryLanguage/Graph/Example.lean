@@ -7,7 +7,7 @@ import QueryLanguage.Graph.SymObSmallDB
 namespace Graph.Example
 
   open Graph.Language
-  open Graph.SymObSmallSignature
+  open Graph.SymObSmallDBSignature
   open Graph.SymObSmallDB
 
   /-- Run a query and print the compiled SQL, the number of matching graphs, and
