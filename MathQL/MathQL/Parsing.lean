@@ -1,6 +1,6 @@
 import Std.Internal.Parsec
 import Std.Internal.Parsec.String
-import MathQL.Surface
+import MathQL.Input
 
 /-! A parser for MathQL concrete syntax, built on `Std.Internal.Parsec`.
 UTF-8 operators (`∈ ∧ ∨ ¬ ≠ ≤ ≥ ⇒`) and ASCII synonyms (`in && || ! != <= >= =>`)
@@ -9,19 +9,22 @@ are both accepted. -/
 namespace MathQL.Parsing
 
 open Std.Internal.Parsec Std.Internal.Parsec.String
-open MathQL.Surface
+open MathQL
 
-abbrev P := Parser
-
-private def opt (p : P α) : P (Option α) := (do return some (← p)) <|> pure none
-
-private partial def sepBy1 (p : P α) (sep : P Unit) : P (List α) := do
+private partial def sepBy1 {α} (p : Parser α) (sep : Parser Unit) : Parser (List α) := do
   let x ← p
   let xs ← many (do sep; p)
   return x :: xs.toList
 
-private def sepBy (p : P α) (sep : P Unit) : P (List α) :=
+private def sepBy {α} (p : Parser α) (sep : Parser Unit) : Parser (List α) :=
   (sepBy1 p sep) <|> pure []
+
+private partial def chainl1Core {α} (p : Parser α) (op : Parser (α → α → α)) (l : α) : Parser α :=
+  (do let f ← op; chainl1Core p op (f l (← p))) <|> pure l
+
+/-- One or more `p`, combined left-associatively by `op`. -/
+private def chainl1 {α} (p : Parser α) (op : Parser (α → α → α)) : Parser α := do
+  chainl1Core p op (← p)
 
 private def isIdentStart (c : Char) : Bool := c.isAlpha || c == '_'
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
@@ -29,190 +32,171 @@ private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
 private def keywords : List String :=
   ["if", "then", "else", "match", "with", "let", "in", "some", "none", "true", "false"]
 
-/-- Skip whitespace. -/
-private def sp : P Unit := ws
-
 /-- A literal token, skipping trailing whitespace. -/
-private def tok (s : String) : P Unit := do skipString s; sp
+private def tok (s : String) : Parser Unit := do skipString s; ws
 
 /-- A raw identifier (not yet checked against keywords). -/
-private def rawIdent : P String := do
+private def rawIdent : Parser String := do
   let c ← satisfy isIdentStart
   let cs ← manyChars (satisfy isIdentRest)
   return c.toString ++ cs
 
 /-- An identifier that is not a keyword, skipping trailing whitespace. -/
-private def ident : P String := attempt do
+private def ident : Parser String := attempt do
   let s ← rawIdent
   if keywords.contains s then fail s!"unexpected keyword '{s}'"
-  sp
+  ws
   return s
 
 /-- A keyword, not immediately followed by an identifier character. -/
-private def keyword (s : String) : P Unit := attempt do
+private def keyword (s : String) : Parser Unit := attempt do
   skipString s
   notFollowedBy (satisfy isIdentRest)
-  sp
+  ws
 
-private def intLit : P Int := do
-  let ds ← many1Chars digit
-  sp
-  match ds.toInt? with
-  | some n => return n
-  | none => fail "bad integer"
+private def intLit : Parser Int := do
+  let n ← digits
+  ws
+  return (Int.ofNat n)
 
-private def stringLit : P String := do
+private def stringLit : Parser String := do
   skipChar '"'
   let s ← manyChars (satisfy (· != '"'))
   skipChar '"'
-  sp
+  ws
   return s
 
-private def compareOp : P String :=
-  (tok "≤" *> pure "le") <|> (tok "<=" *> pure "le") <|>
-  (tok "≥" *> pure "ge") <|> (tok ">=" *> pure "ge") <|>
-  (tok "≠" *> pure "ne") <|> (tok "!=" *> pure "ne") <|>
-  (tok "==" *> pure "eq") <|> (tok "=" *> pure "eq") <|>
-  (tok "<" *> pure "lt") <|> (tok ">" *> pure "gt")
+private def compareOp : Parser BinaryOp :=
+  (tok "≤" *> pure .le) <|> (tok "<=" *> pure .le) <|>
+  (tok "≥" *> pure .ge) <|> (tok ">=" *> pure .ge) <|>
+  (tok "≠" *> pure .ne) <|> (tok "!=" *> pure .ne) <|>
+  (tok "==" *> pure .eq) <|> (tok "=" *> pure .eq) <|>
+  (tok "<" *> pure .lt) <|> (tok ">" *> pure .gt)
 
 mutual
 
-private partial def ptype : P STy :=
-  (keyword "Int" *> pure STy.int) <|>
-  (keyword "Bool" *> pure STy.bool) <|>
-  (keyword "String" *> pure STy.string) <|>
-  (do keyword "Option"; return STy.option (← ptype)) <|>
-  (do keyword "List"; return STy.list (← ptype)) <|>
+private partial def ptype : Parser Input.Ty :=
+  (keyword "Int" *> pure .int) <|>
+  (keyword "Bool" *> pure .bool) <|>
+  (keyword "String" *> pure .string) <|>
+  (do keyword "Option"; return .option (← ptype)) <|>
+  (do keyword "List"; return .list (← ptype)) <|>
   (do tok "("; let ts ← sepBy ptype (tok ","); tok ")";
-      return match ts with | [t] => t | _ => STy.prod ts) <|>
-  (do return STy.name (← ident))
+      return match ts with | [t] => t | _ => .prod ts) <|>
+  (do return .name (← ident))
 
-private partial def pattern : P Pat := do
+private partial def pattern : Parser Input.Pattern := do
   let p ← patternAtom
-  (do tok "::"; return Pat.cons p (← pattern)) <|> pure p
+  (do tok "::"; return .cons p (← pattern)) <|> pure p
 
-private partial def patternAtom : P Pat :=
-  (keyword "_" *> pure Pat.wild) <|>
-  (keyword "none" *> pure Pat.noneP) <|>
-  (do keyword "some"; return Pat.someP (← patternAtom)) <|>
-  (do tok "."; return Pat.enumCtor (← ident)) <|>
-  (do tok "["; tok "]"; return Pat.nil) <|>
-  (do tok "{"; let fs ← sepBy (do let l ← ident; tok ":="; return (l, ← pattern)) (tok ","); tok "}";
-      return Pat.record fs) <|>
+private partial def patternAtom : Parser Input.Pattern :=
+  (keyword "_" *> pure .wild) <|>
+  (keyword "none" *> pure .noneP) <|>
+  (do keyword "some"; return .someP (← patternAtom)) <|>
+  (do tok "."; return .enumCtor (← ident)) <|>
+  (do tok "["; tok "]"; return .nil) <|>
   (do tok "("; let ps ← sepBy pattern (tok ","); tok ")";
-      return match ps with | [p] => p | _ => Pat.tuple ps) <|>
-  (do return Pat.var (← ident))
+      return match ps with | [p] => p | _ => .tuple ps) <|>
+  (do return .var (← ident))
 
-private partial def expr : P Expr :=
+private partial def expr : Parser Input.Expr :=
   ifExpr <|> matchExpr <|> letExpr <|> consExpr
 
-private partial def ifExpr : P Expr := do
+private partial def ifExpr : Parser Input.Expr := do
   keyword "if"; let c ← expr
   keyword "then"; let t ← expr
   keyword "else"; let e ← expr
-  return Expr.ite c t e
+  return .ite c t e
 
-private partial def letExpr : P Expr := do
+private partial def letExpr : Parser Input.Expr := do
   keyword "let"; let p ← pattern
   tok ":="; let v ← expr
   keyword "in"; let b ← expr
-  return Expr.let p v b
+  return .bind p v b
 
-private partial def matchExpr : P Expr := do
+private partial def matchExpr : Parser Input.Expr := do
   keyword "match"; let s ← expr; keyword "with"
   let alts ← many1 (do
-    tok "|"; let p ← pattern; (tok "⇒" <|> tok "=>"); return (p, ← expr))
-  return Expr.mat s alts.toList
+    tok "|"; let Parser ← pattern; (tok "⇒" <|> tok "=>"); return (Parser, ← expr))
+  return .cases s alts.toList
 
-private partial def consExpr : P Expr := do
+private partial def consExpr : Parser Input.Expr := do
   let e ← orExpr
-  (do tok "::"; return Expr.cons e (← consExpr)) <|> pure e
+  (do tok "::"; return .cons e (← consExpr)) <|> pure e
 
-private partial def orExpr : P Expr := do
-  let mut e ← andExpr
-  let rest ← many (do (tok "∨" <|> tok "||"); andExpr)
-  for r in rest do e := Expr.binop "or" e r
-  return e
+private partial def orExpr : Parser Input.Expr :=
+  chainl1 andExpr ((tok "∨" <|> tok "||") *> pure (.binop .or))
 
-private partial def andExpr : P Expr := do
-  let mut e ← cmpExpr
-  let rest ← many (do (tok "∧" <|> tok "&&"); cmpExpr)
-  for r in rest do e := Expr.binop "and" e r
-  return e
+private partial def andExpr : Parser Input.Expr :=
+  chainl1 cmpExpr ((tok "∧" <|> tok "&&") *> pure (.binop .and))
 
-private partial def cmpExpr : P Expr := do
+private partial def cmpExpr : Parser Input.Expr := do
   let l ← addExpr
-  (do let op ← compareOp; return Expr.binop op l (← addExpr)) <|> pure l
+  (do let op ← compareOp; return .binop op l (← addExpr)) <|> pure l
 
-private partial def addExpr : P Expr := do
-  let mut e ← mulExpr
-  let rest ← many ((do tok "+"; return ("add", ← mulExpr)) <|> (do tok "-"; return ("sub", ← mulExpr)))
-  for (op, r) in rest do e := Expr.binop op e r
-  return e
+private partial def addExpr : Parser Input.Expr :=
+  chainl1 mulExpr
+    ((tok "+" *> pure (.binop .add)) <|> (tok "-" *> pure (.binop .sub)))
 
-private partial def mulExpr : P Expr := do
-  let mut e ← unaryExpr
-  let rest ← many (do tok "*"; unaryExpr)
-  for r in rest do e := Expr.binop "mul" e r
-  return e
+private partial def mulExpr : Parser Input.Expr :=
+  chainl1 unaryExpr (tok "*" *> pure (.binop .mul))
 
-private partial def unaryExpr : P Expr :=
-  (do (tok "¬" <|> tok "!"); return Expr.unop "not" (← unaryExpr)) <|>
-  (do tok "-"; return Expr.unop "neg" (← unaryExpr)) <|>
+private partial def unaryExpr : Parser Input.Expr :=
+  (do (tok "¬" <|> tok "!"); return .unop UnaryOp.not (← unaryExpr)) <|>
+  (do tok "-"; return .unop UnaryOp.neg (← unaryExpr)) <|>
   postfixExpr
 
-private partial def postfixExpr : P Expr := do
-  let mut e ← atomExpr
-  let rest ← many (do tok "."; (do return Sum.inr (← intLitNat)) <|> (do return Sum.inl (← ident)))
-  for r in rest do
-    e := match r with | Sum.inl f => Expr.field e f | Sum.inr i => Expr.proj e i
-  return e
+private partial def postfixExpr : Parser Input.Expr := do
+  postfixCore (← atomExpr)
 
-private partial def intLitNat : P Nat := do
-  let ds ← many1Chars digit
-  sp
-  return ds.toNat!
+private partial def postfixCore (e : Input.Expr) : Parser Input.Expr :=
+  (do tok "."
+      let step ← (do return .proj e (← intLitNat)) <|> (do return .field e (← ident))
+      postfixCore step) <|>
+  pure e
 
-private partial def atomExpr : P Expr :=
-  (do return Expr.int (← intLit)) <|>
-  (keyword "true" *> pure (Expr.bool true)) <|>
-  (keyword "false" *> pure (Expr.bool false)) <|>
-  (keyword "none" *> pure Expr.noneE) <|>
-  (do keyword "some"; return Expr.someE (← atomExpr)) <|>
-  (do return Expr.str (← stringLit)) <|>
-  (do tok "."; return Expr.enumCtor (← ident)) <|>
-  (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return Expr.listLit items) <|>
-  (do tok "{"; let fs ← sepBy (do let l ← ident; tok ":="; return (l, ← expr)) (tok ","); tok "}";
-      return Expr.record fs) <|>
-  parenExpr <|>
-  (do return Expr.var (← ident))
+private partial def intLitNat : Parser Nat := do
+  let n ← digits
+  ws
+  return n
 
-private partial def parenExpr : P Expr := do
+private partial def atomExpr : Parser Input.Expr :=
+  (do return .int (← intLit)) <|>
+  (keyword "true" *> pure (.bool true)) <|>
+  (keyword "false" *> pure (.bool false)) <|>
+  (keyword "none" *> pure .noneE) <|>
+  (do keyword "some"; return .someE (← atomExpr)) <|>
+  (do return .str (← stringLit)) <|>
+  (do tok "."; return .enumCtor (← ident)) <|>
+  (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .listLit items) <|>
+  (do return .var (← ident))
+
+private partial def parenExpr : Parser Input.Expr := do
   tok "("
   let first ← expr
   let r ← (do tok ":"; return Sum.inl (← ptype)) <|>
           (do let more ← many (do tok ","; expr); return Sum.inr more.toList)
   tok ")"
   return match r with
-    | Sum.inl ty => Expr.ascribe first ty
+    | Sum.inl ty => .ascribe first ty
     | Sum.inr [] => first
-    | Sum.inr more => Expr.tuple (first :: more)
+    | Sum.inr more => .tuple (first :: more)
 
 end
 
-private def query : P Query := do
-  sp; tok "{"
+private def query : Parser Input.Query := do
+  ws; tok "{"
   let result ← expr
   tok "|"
   let var ← ident
   (keyword "in" <|> tok "∈")
   let domain ← ident
-  let condition ← opt (do tok ","; expr)
+  let condition ← optional (do tok ","; expr)
   tok "}"
   eof
   return { result, var, domain, condition }
 
 /-- Parse a MathQL query string. -/
-def parse (s : String) : Except String Query := query.run s
+def parse (s : String) : Except String Input.Query := query.run s
 
 end MathQL.Parsing

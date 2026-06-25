@@ -1,10 +1,10 @@
 import Lake
 open Lake DSL
 
-require leansqlite from "../../leansqlite"
+require leansqlite from git "git@github.com:leanprover/leansqlite.git" @ "main"
 
 package MathQL where
-  leanOptions := #[⟨`experimental.module, true⟩]
+  leanOptions := #[⟨`experimental.module, true⟩, ⟨`autoImplicit, false⟩]
 
 @[default_target]
 lean_lib MathQL where
