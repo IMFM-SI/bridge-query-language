@@ -13,7 +13,7 @@ namespace Graph.Example
   /-- Run a query and print the compiled SQL, the number of matching graphs, and
       one line per graph: its external reference(s), `order` and `size`. -/
   def report (q : Query O P D) : IO Unit := do
-    IO.println s!"SQL: {explain q}"
+    IO.println s!"SQL: {toSQL q}"
     let rows ← SymObSmall.exec q
     IO.println s!"→ {rows.length} graph(s):"
     for g in rows do

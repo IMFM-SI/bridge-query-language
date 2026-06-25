@@ -54,10 +54,10 @@ namespace Graph.SymObSmallDB
     s!"({Tm.toSQL (.fst t)} {op} {Tm.toSQL (.snd t)})"
 
   /-- Compile a query into a SQL boolean expression, suitable for a `WHERE` clause. -/
-  def Query.toSQL : Query O P D → String
+  def Query.toWhereCondition : Query O P D → String
   | .false           => "0"
   | .true            => "1"
-  | .conj p q        => s!"({Query.toSQL p} AND {Query.toSQL q})"
+  | .conj p q        => s!"({Query.toWhereCondition p} AND {Query.toWhereCondition q})"
   | .pred Pred.eq t  => binSQL t "="
   | .pred Pred.le t  => binSQL t "<="
   | .pred Pred.lt t  => binSQL t "<"
@@ -101,12 +101,12 @@ namespace Graph.SymObSmallDB
       returned once; its external references are pulled from
       `graphexternalreference` (left-joined so graphs with none are still listed)
       and aggregated into a single `source:id_source` list. -/
-  def explain (q : Query O P D) : String :=
+  def toSQL (q : Query O P D) : String :=
     "SELECT g.\"order\", g.size, g.graph_in_sparse6, " ++
       "group_concat(r.source || ':' || r.id_source, ', ') AS refs " ++
       "FROM graph g " ++
       "LEFT JOIN graphexternalreference r ON r.graph_id = g.id " ++
-      s!"WHERE {Query.toSQL q} GROUP BY g.id"
+      s!"WHERE {Query.toWhereCondition q} GROUP BY g.id"
 
   /-- Step a prepared `SELECT` to exhaustion, accumulating one `Obj` per row.
       `partial` because the number of result rows is not known statically. -/
@@ -126,7 +126,7 @@ namespace Graph.SymObSmallDB
       `SELECT … FROM graph WHERE <query>`, and collect the resulting rows. -/
   def fetch (q : Query O P D) : IO (List Obj) := do
     let db ← SQLite.openWith dbPath .readonly
-    let stmt ← SQLite.prepare db (explain q)
+    let stmt ← SQLite.prepare db (toSQL q)
     return (← collect stmt #[]).toList
 
   /-- Execute a query: `fetch` the candidate rows, then keep only those that
