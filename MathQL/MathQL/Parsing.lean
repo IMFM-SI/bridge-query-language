@@ -30,7 +30,7 @@ private def isIdentStart (c : Char) : Bool := c.isAlpha || c == '_'
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
 
 private def keywords : List String :=
-  ["if", "then", "else", "match", "with", "let", "in", "some", "none", "true", "false"]
+  ["if", "then", "else", "some", "none", "true", "false"]
 
 /-- A literal token, skipping trailing whitespace. -/
 private def tok (s : String) : Parser Unit := do skipString s; ws
@@ -85,40 +85,14 @@ private partial def ptype : Parser Input.Ty :=
       return match ts with | [t] => t | _ => .prod ts) <|>
   (do return .name (← ident))
 
-private partial def pattern : Parser Input.Pattern := do
-  let p ← patternAtom
-  (do tok "::"; return .cons p (← pattern)) <|> pure p
-
-private partial def patternAtom : Parser Input.Pattern :=
-  (keyword "_" *> pure .wild) <|>
-  (keyword "none" *> pure .noneP) <|>
-  (do keyword "some"; return .someP (← patternAtom)) <|>
-  (do tok "."; return .enumCtor (← ident)) <|>
-  (do tok "["; tok "]"; return .nil) <|>
-  (do tok "("; let ps ← sepBy pattern (tok ","); tok ")";
-      return match ps with | [p] => p | _ => .tuple ps) <|>
-  (do return .var (← ident))
-
 private partial def expr : Parser Input.Expr :=
-  ifExpr <|> matchExpr <|> letExpr <|> consExpr
+  ifExpr <|> consExpr
 
 private partial def ifExpr : Parser Input.Expr := do
   keyword "if"; let c ← expr
   keyword "then"; let t ← expr
   keyword "else"; let e ← expr
   return .ite c t e
-
-private partial def letExpr : Parser Input.Expr := do
-  keyword "let"; let p ← pattern
-  tok ":="; let v ← expr
-  keyword "in"; let b ← expr
-  return .bind p v b
-
-private partial def matchExpr : Parser Input.Expr := do
-  keyword "match"; let s ← expr; keyword "with"
-  let alts ← many1 (do
-    tok "|"; let Parser ← pattern; (tok "⇒" <|> tok "=>"); return (Parser, ← expr))
-  return .cases s alts.toList
 
 private partial def consExpr : Parser Input.Expr := do
   let e ← orExpr
@@ -191,7 +165,7 @@ private def query : Parser Input.Query := do
   let var ← ident
   (keyword "in" <|> tok "∈")
   let domain ← ident
-  let condition ← optional (do tok ","; expr)
+  let condition ← (do tok ","; expr) <|> pure (.bool true)
   tok "}"
   eof
   return { result, var, domain, condition }

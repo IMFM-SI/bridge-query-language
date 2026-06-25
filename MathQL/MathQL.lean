@@ -1,7 +1,6 @@
 import MathQL.Name
 import MathQL.Operators
 import MathQL.Ty
-import MathQL.Pattern
 import MathQL.Expr
 import MathQL.Context
 import MathQL.Rules

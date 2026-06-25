@@ -1,6 +1,5 @@
 import MathQL.Name
 import MathQL.Operators
-import MathQL.Pattern
 
 namespace MathQL
 
@@ -21,6 +20,4 @@ inductive Expr where
   | someE : Expr → Expr
   | noneE : Expr
   | ite : Expr → Expr → Expr → Expr
-  | bind : Pattern → Expr → Expr → Expr
-  | cases : Expr → List (Pattern × Expr) → Expr
 deriving Repr

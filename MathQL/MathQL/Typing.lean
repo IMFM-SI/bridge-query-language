@@ -1,11 +1,10 @@
 import MathQL.Input
+import MathQL.Result
 import MathQL.Context
 import MathQL.Expr
 import MathQL.Rules
 
 namespace MathQL
-
-abbrev Result := Except String
 
 mutual
 
@@ -62,13 +61,7 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
       return ⟨.tuple es', .tuple h⟩
     | _ => .error s!"expected {repr t}, but got a tuple"
 
-  | .cases _ _ => sorry
-
-  | .bind _ _ _ => sorry
-
-  | .cons _ _ | .listLit (_ :: _) | .someE _
-  | .int _ | .bool _ | .str _ | .enumCtor _ | .var _ | .field _ _ | .proj _ _
-  | .unop _ _ | .binop _ _ _ | .ascribe _ _ => do
+  | e => do
     let ⟨t', e', h⟩ ← infer Γ e
     if heq : t' == t then .ok ⟨e', Ty.eq_of_beq t' t heq ▸ h⟩
     else .error s!"type mismatch: expected {repr t}, but got {repr t'}"
@@ -154,10 +147,6 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     let ⟨ts, es', h⟩ ← inferTuple Γ es
     return ⟨.prod ts, .tuple es', .tuple h⟩
 
-  | .bind _ _ _ => sorry
-
-  | .cases _ _ => sorry
-
   | .nil | .listLit [] | .noneE =>
     .error "cannot infer a type for this expression; add an annotation"
 
@@ -198,5 +187,18 @@ def checkList (Γ : Context) (t : Ty) :
     return ⟨.cons e' rest, .cons he hrest⟩
 
 end
+
+def checkQuery (tyDefs : TyDefs) (q : Input.Query) : Result (Query tyDefs) := do
+  let ⟨result, var, domain, condition⟩ := q
+  let Γ := (Context.empty tyDefs).extend (.ident var) (.name (.ident domain))
+  let ⟨resultTy, result, hr⟩ ← infer Γ result
+  let ⟨condition, hc⟩ ← check Γ condition .bool
+  return { result := result,
+           resultTy := resultTy,
+           var := .ident var,
+           domain := .name (.ident domain),
+           condition := condition,
+           resultOfTy := hr,
+           conditionOfBool := hc}
 
 end MathQL
