@@ -47,4 +47,20 @@ def maniplexes : Database where
 
 def databases : List Database := [smallGraphs, maniplexes]
 
+def ColumnKind.describe : ColumnKind → String
+  | .int => "integer"
+  | .bool => "boolean"
+  | .string => "string"
+  | .jsonIntList => "list of integers"
+  | .optionInt => "integer or null"
+
+/-- A JSON description of every domain and its invariants. -/
+def catalogJson : String :=
+  let domainJson (d : Domain) : String :=
+    let attrs := ", ".intercalate (d.attributes.map fun a =>
+      "{\"name\": \"" ++ a.name ++ "\", \"kind\": \"" ++ a.kind.describe ++ "\"}")
+    "{\"domain\": \"" ++ d.name ++ "\", \"invariants\": [" ++ attrs ++ "]}"
+  "[" ++ ", ".intercalate ((databases.flatMap (·.domains)).map domainJson) ++ "]"
+
 end MathQL
+
