@@ -13,7 +13,12 @@ maxSynthPendingDepth = 3
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-rev = "v4.26.0"
+rev = "v4.32.0-rc1"
+
+[[require]]
+name = "leansqlite"
+git = "https://github.com/leanprover/leansqlite"
+rev = "b61f1cfac14d03094cb3c0e65acd504416e47cad"
 
 [[lean_lib]]
 name = "QueryLanguage"
