@@ -101,7 +101,7 @@ namespace Graph.SymObSmallDB
       returned once; its external references are pulled from
       `graphexternalreference` (left-joined so graphs with none are still listed)
       and aggregated into a single `source:id_source` list. -/
-  def toSQL (q : Query O P D) : String :=
+  def Query.toSQL (q : Query O P D) : String :=
     "SELECT g.\"order\", g.size, g.graph_in_sparse6, " ++
       "group_concat(r.source || ':' || r.id_source, ', ') AS refs " ++
       "FROM graph g " ++
@@ -124,22 +124,22 @@ namespace Graph.SymObSmallDB
 
   /-- Fetch candidate rows: open the database read-only, run the compiled
       `SELECT … FROM graph WHERE <query>`, and collect the resulting rows. -/
-  def fetch (q : Query O P D) : IO (List Obj) := do
+  def Query.fetch (q : Query O P D) : IO (List Obj) := do
     let db ← SQLite.openWith dbPath .readonly
-    let stmt ← SQLite.prepare db (toSQL q)
+    let stmt ← SQLite.prepare db (Query.toSQL q)
     return (← collect stmt #[]).toList
 
   /-- Execute a query: `fetch` the candidate rows, then keep only those that
       satisfy the query under its Lean interpretation. The in-Lean filter is
       what makes `DB.correct` provable; SQLite's `WHERE` makes it efficient. -/
-  def exec (q : Query O P D) : IO (List Obj) :=
-    (List.filter (q.interpret OM PM DM)) <$> fetch q
+  def Query.exec (q : Query O P D) : IO (List Obj) :=
+    (List.filter (q.interpret OM PM DM)) <$> Query.fetch q
 
   /-- The database. `correct` records that `exec` is `fetch` post-filtered by
       the query's interpretation, so every returned object satisfies the query. -/
   def SymObSmall : DB D OM PM where
     Model := DM
-    exec := exec
-    correct := (fun q => SatisfiesIO.filter (q.interpret OM PM DM) (fetch q))
+    exec := Query.exec
+    correct := (fun q => SatisfiesIO.filter (q.interpret OM PM DM) (Query.fetch q))
 
 end Graph.SymObSmallDB
