@@ -140,6 +140,6 @@ namespace Graph.SymObSmallDB
   def SymObSmall : DB D OM PM where
     Model := DM
     exec := exec
-    correct := (fun q => ⟨fetch q, rfl⟩)
+    correct := (fun q => SatisfiesIO.filter (q.interpret OM PM DM) (fetch q))
 
 end Graph.SymObSmallDB

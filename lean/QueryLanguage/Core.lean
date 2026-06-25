@@ -159,6 +159,27 @@ def Query.interpret {G : Type} {O : OpSignature G} {P : PredSignature G}
 | .conj p q => p.interpret OM PM DM obj && q.interpret OM PM DM obj
 | .pred p t => PM p (t.interpret OM DM obj)
 
+/-- `SatisfiesIO p x` lifts a postcondition `p` over an `IO` action `x`. -/
+def SatisfiesIO {α : Type} (p : α → Prop) (x : IO α) : Prop :=
+  ∃ x' : IO { a : α // p a }, Subtype.val <$> x' = x
+
+section
+/- Observing that `IO` and the monad stack below it are all lawful monads. -/
+local instance {ε σ : Type} : LawfulMonad (EST ε σ) := .mk' _
+  (id_map := fun x => funext fun v => by dsimp [Functor.map, EST.bind]; cases x v <;> rfl)
+  (pure_bind := fun x f => rfl)
+  (bind_assoc := fun f g x => funext fun v => by dsimp [Bind.bind, EST.bind]; cases f v <;> rfl)
+local instance {ε : Type} : LawfulMonad (EIO ε) := inferInstanceAs <| LawfulMonad (EST _ _)
+local instance : LawfulMonad IO := inferInstanceAs <| LawfulMonad (EIO _)
+
+/-- Helpful lemma to prove that `DB.exec` definitions that first fetch all the
+    data and then filter our the query-satisfying items satisfy `SatisfiedIO`. -/
+theorem SatisfiesIO.filter {α : Type} (p : α → Bool) (fetch : IO (List α)) :
+    SatisfiesIO (fun l => ∀ a ∈ l, p a) (List.filter p <$> fetch) :=
+  ⟨(fun l => (⟨l.filter p, fun _ h => (List.mem_filter.mp h).2⟩ :
+      { l : List α // ∀ a ∈ l, p a })) <$> fetch, by rw [Functor.map_map]⟩
+end
+
 /-- A database stores objects of a given type `Obj`. It specifies how
     the attributes are interpreted, and it can execute queries that fetch
     lists of objects. In the future we will likely replace lists with
@@ -172,13 +193,6 @@ structure DB {G : Type} {O : OpSignature G} {P : PredSignature G}
   /-- Execute a query and return the list of objects satisfying it. Execution
       lives in `IO`, because the database may be an external store. -/
   exec : Query O P D → IO (List Model.Obj)
-  /-- Correctness of queries: `exec` returns only objects satisfying the query.
-      Since `exec q` is an `IO` action, we cannot inspect its result directly;
-      instead we record that it factors as a *raw fetch* from the backing store
-      followed by a pure filter by the query's interpretation. Filtering keeps
-      exactly the satisfying objects, so every object `exec q` returns satisfies
-      `q`. (For an in-memory database the fetch is trivial; for an external one
-      it is the underlying query against the store.) -/
+  /-- Correctness of queries: every object that `exec q` returns satisfies `q`. -/
   correct : ∀ (q : Query O P D),
-    ∃ fetch : IO (List Model.Obj),
-      exec q = (List.filter (q.interpret OM PM Model)) <$> fetch
+    SatisfiesIO (fun objs => ∀ obj ∈ objs, q.interpret OM PM Model obj) (exec q)

@@ -57,6 +57,6 @@ namespace Peano.ExampleDB
   def Pasture : DB D OM PM where
     Model := DM
     exec := exec
-    correct := (fun _ => ⟨fetch, rfl⟩)
+    correct := (fun q => SatisfiesIO.filter (q.interpret OM PM DM) fetch)
 
 end Peano.ExampleDB
