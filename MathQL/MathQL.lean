@@ -6,3 +6,5 @@ import MathQL.Databases
 import MathQL.Parser
 import MathQL.Compile
 import MathQL.Engine
+import MathQL.Surface
+import MathQL.Parsing
