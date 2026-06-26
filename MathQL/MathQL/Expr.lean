@@ -17,4 +17,6 @@ inductive Expr where
   | nil : Expr
   | cons : Expr → Expr → Expr
   | ite : Expr → Expr → Expr → Expr
+  | defined : Expr → Expr
+  | undefined : Expr → Expr
 deriving Repr

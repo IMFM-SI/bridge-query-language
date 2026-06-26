@@ -83,6 +83,14 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
       let ⟨e₂', h₂⟩ ← check Γ e₂ t₂
       return ⟨t₃, .binop op e₁' e₂', .binop h h₁ h₂⟩
 
+  | .defined e => do
+    let ⟨_, e', he⟩ ← infer Γ e
+    return ⟨.bool, .defined e', .defined he⟩
+
+  | .undefined e => do
+    let ⟨_, e', he⟩ ← infer Γ e
+    return ⟨.bool, .undefined e', .undefined he⟩
+
   | .cons e es => do
     let ⟨t, e', he⟩ ← infer Γ e
     let ⟨es', hes⟩ ← check Γ es (.list t)

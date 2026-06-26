@@ -17,6 +17,8 @@ def elaborates (s : String) : Bool :=
 #guard elaborates "{ g.n | g ∈ Graph, g.n > 3 }"
 #guard elaborates "{ g.n, g.n | g ∈ Graph }"
 #guard elaborates "{ g.n, h.n | g ∈ Graph, h ∈ Graph, g.n = h.n }"
+#guard elaborates "{ g.n | g ∈ Graph, defined g.n }"
+#guard elaborates "{ g.n | g ∈ Graph, undefined g.planar ∨ g.n > 0 }"
 
 -- Ill-typed queries.
 #guard !elaborates "{ g.n | g ∈ Graph, g.n }"           -- condition is Int, not Bool

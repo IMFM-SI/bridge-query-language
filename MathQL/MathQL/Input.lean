@@ -20,6 +20,8 @@ inductive Expr where
   | tuple : List Expr → Expr
   | unop : UnaryOp → Expr → Expr
   | binop : BinaryOp → Expr → Expr → Expr
+  | defined : Expr → Expr
+  | undefined : Expr → Expr
 deriving Repr
 
 /-- A top-level query `{ output | var ∈ domain, condition }`. A query is not an

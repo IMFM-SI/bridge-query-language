@@ -30,7 +30,7 @@ private def isIdentStart (c : Char) : Bool := c.isAlpha || c == '_'
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
 
 private def keywords : List String :=
-  ["if", "then", "else", "in", "true", "false"]
+  ["if", "then", "else", "in", "true", "false", "defined", "undefined"]
 
 /-- A literal token, skipping trailing whitespace. -/
 private def tok (s : String) : Parser Unit := do skipString s; ws
@@ -106,6 +106,8 @@ private partial def mulExpr : Parser Input.Expr :=
   chainl1 unaryExpr (tok "*" *> pure (.binop .mul))
 
 private partial def unaryExpr : Parser Input.Expr :=
+  (do keyword "defined"; return .defined (← unaryExpr)) <|>
+  (do keyword "undefined"; return .undefined (← unaryExpr)) <|>
   (do (tok "¬" <|> tok "!"); return .unop UnaryOp.not (← unaryExpr)) <|>
   (do tok "-"; return .unop UnaryOp.neg (← unaryExpr)) <|>
   postfixExpr
