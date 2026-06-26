@@ -9,7 +9,7 @@ abbrev TyDefs := List (Ident × TyDef)
 /-- Contexts. -/
 structure Context where
   tyDefs : TyDefs
-  var : List (Ident × Ty)
+  var : List (Ident × Ident)
 
 def Context.lookupVar (Γ : Context) (x : Ident) : Option Ty :=
   Γ.var.lookup x

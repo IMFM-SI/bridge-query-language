@@ -5,26 +5,26 @@ namespace MathQL
 
 /-- Types of the query language. -/
 inductive Ty where
-  | name : Ident → Ty
   | int : Ty
   | bool : Ty
   | string : Ty
   | option : Ty → Ty
   | list : Ty → Ty
   | prod : List Ty → Ty
+  | enum : Ident → Ty
 deriving Repr
 
 mutual
 
 def Ty.beq : Ty → Ty → Bool
-  | .name n₁, .name n₂ => n₁ == n₂
+  | .enum n₁, .enum n₂ => n₁ == n₂
   | .int, .int => true
   | .bool, .bool => true
   | .string, .string => true
   | .option a, .option b => Ty.beq a b
   | .list a, .list b => Ty.beq a b
   | .prod as, .prod bs => Ty.beqList as bs
-  | .name _, _ | .int, _ | .bool, _ | .string, _ | .option _, _ | .list _, _ | .prod _, _ => false
+  | .enum _, _ | .int, _ | .bool, _ | .string, _ | .option _, _ | .list _, _ | .prod _, _ => false
 
 def Ty.beqList : List Ty → List Ty → Bool
   | [], [] => true
@@ -38,7 +38,7 @@ instance : BEq Ty := ⟨Ty.beq⟩
 mutual
 
 theorem Ty.beq_refl : (a : Ty) → Ty.beq a a = true
-  | .name n => beq_self_eq_true n
+  | .enum n => beq_self_eq_true n
   | .int => rfl
   | .bool => rfl
   | .string => rfl
@@ -57,10 +57,10 @@ mutual
 theorem Ty.eq_of_beq : (a b : Ty) → Ty.beq a b = true → a = b := by
   intro a b h
   cases a <;> cases b <;> try first | rfl | exact Bool.noConfusion h
-  · exact congrArg Ty.name (LawfulBEq.eq_of_beq h)
   · exact congrArg Ty.option (Ty.eq_of_beq _ _ h)
   · exact congrArg Ty.list (Ty.eq_of_beq _ _ h)
   · exact congrArg Ty.prod (Ty.eqList_of_beq _ _ h)
+  · exact congrArg Ty.enum (LawfulBEq.eq_of_beq h)
 
 theorem Ty.eqList_of_beq : (as bs : List Ty) → Ty.beqList as bs = true → as = bs
   | [], [], _ => rfl
