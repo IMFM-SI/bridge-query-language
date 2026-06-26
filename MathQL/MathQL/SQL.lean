@@ -9,6 +9,8 @@ and used as a table alias) and the boolean condition. The selected columns and t
 structure Query where
   vars : List (Ident × Domain)
   cond : Expr
+  limit : Option Nat
+  order : List (Expr × Direction)
 
 /-- Render a query to SQLite text, with a bare condition. The `SELECT` columns and
 `FROM` tables come from each variable's `Domain`.
@@ -18,7 +20,11 @@ def renderQuery (q : Query) : String :=
   let froms := ", ".intercalate <| q.vars.map fun (x, dom) => s!"{dom.table} AS {x.name}"
   let cols  := ", ".intercalate <| q.vars.flatMap fun (x, dom) =>
                  dom.select.map fun c => renderExpr (.col x.name c)
-  s!"SELECT {cols} FROM {froms} WHERE {renderExpr q.cond}"
+  let order := match q.order with
+    | [] => ""
+    | es => " ORDER BY " ++ ", ".intercalate (es.map fun (e, d) => s!"{renderExpr e} {renderDir d}")
+  let limit := match q.limit with | some n => s!" LIMIT {n}" | none => ""
+  s!"SELECT {cols} FROM {froms} WHERE {renderExpr q.cond}{order}{limit}"
 
 instance : ToString Expr  := ⟨renderExpr⟩
 instance : ToString Query := ⟨renderQuery⟩

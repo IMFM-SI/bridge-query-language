@@ -89,8 +89,12 @@ def compile (D : Database) (q : Query) : Result SQL.Query := do
     | some dom => pure (x, dom)
     | none => throw s!"unknown domain {repr n}"
   -- The following is hand-roled without using do-notation because of universe levels
-  match toSQL (SqlCtx.ofVars D vars) q.condition with
+  let Γ := SqlCtx.ofVars D vars
+  match toSQL Γ q.condition with
   | .error e => throw e
-  | .ok cond => return { vars, cond }
+  | .ok cond =>
+    match q.order.mapM (fun (e, d) => do return (← toSQL Γ e, d)) with
+    | .error e => throw e
+    | .ok order => return { vars, cond, order, limit := q.limit }
 
 end MathQL

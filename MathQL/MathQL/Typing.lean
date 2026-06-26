@@ -185,11 +185,22 @@ def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
   | .none => throw s!"unknown domain {n'}"
   | .some d => checkDomainVars (Γ.extend x (.domain d)) ((x, n) :: acc) xns
 
+def checkOrder (Γ : Context) :
+    List Input.OrderEntry → Result (List (Expr × Direction))
+  | [] => return []
+  | entry :: rest => do
+    let ⟨t, e, _⟩ ← infer Γ entry.expr
+    match t with
+    | .int | .bool | .string =>
+      let rest ← checkOrder Γ rest
+      return (e, entry.dir) :: rest
+    | .list _ | .prod _ => throw s!"cannot order by a value of type {repr t}"
+
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
-  let ⟨output, vars, condition⟩ := q
-  let ⟨Γ, vars⟩ ← checkDomainVars Γ [] vars
-  let output ← checkOutput Γ output
-  let ⟨condition, _⟩ ← check Γ condition .bool
-  return { vars, condition, output }
+  let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))
+  let output ← checkOutput Γ (q.output.map fun o => (o.var, o.field))
+  let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
+  let order ← checkOrder Γ (q.order.getD [])
+  return { vars, condition, output, limit := q.limit, order }
 
 end MathQL

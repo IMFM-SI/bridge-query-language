@@ -25,12 +25,33 @@ inductive Expr where
   | undefined : Expr → Expr
 deriving Repr
 
-/-- A top-level query `{ output | var ∈ domain, condition }`. A query is not an
-    expression: it cannot nest or appear as a subterm. -/
+/-- An output item: a domain variable `x` (the whole object), or a field
+    projection `x.field`. -/
+structure OutputItem where
+  var : String
+  field : Option String
+deriving Repr
+
+/-- A domain binding `x ∈ D`: the variable and the domain it ranges over. -/
+structure Binding where
+  var : String
+  domain : String
+deriving Repr
+
+/-- An `ORDER BY` entry: an expression and a sort direction. -/
+structure OrderEntry where
+  expr : Expr
+  dir : Direction
+deriving Repr
+
+/-- A query. `condition`, `order`, and `limit` are optional in the input; the
+    type-checker fills in `true`, the empty list, and none respectively. -/
 structure Query where
-  output : List (String × Option String)
-  vars : List (String × String)
-  condition : Expr
+  domains : List Binding
+  output : List OutputItem
+  condition : Option Expr := none
+  order : Option (List OrderEntry) := none
+  limit : Option Nat := none
 deriving Repr
 
 end MathQL.Input

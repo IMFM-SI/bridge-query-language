@@ -26,3 +26,9 @@ inductive ComparisonOp where
   | gt
   | ge
 deriving Repr, Inhabited, BEq
+
+/-- Sort direction for `ORDER BY`. -/
+inductive Direction where
+  | asc
+  | desc
+deriving Repr, Inhabited, BEq

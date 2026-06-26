@@ -8,22 +8,31 @@ def toyCtx : DomainContext :=
     { inputField := [(.label "n", .int), (.label "planar", .bool)],
       outputField := [.label "n"] })]
 
-/-- Does `s` parse and type-check against `toyCtx`? -/
-def elaborates (s : String) : Bool :=
-  (Parsing.parse s |>.bind (checkQuery (Context.empty toyCtx)) |>.toOption).isSome
+/-- A query in JSON form binding `g` and `h` to `Graph`, with the given output
+    list and condition. -/
+def jq (output : List String) (condition : String) : Lean.Json :=
+  json% {
+    "domains":   [["g", "Graph"], ["h", "Graph"]],
+    "output":    $(Lean.toJson output),
+    "condition": $(Lean.toJson condition)
+  }
+
+/-- Does the JSON query `j` decode and type-check against `toyCtx`? -/
+def elaborates (j : Lean.Json) : Bool :=
+  (Input.Query.fromJson j |>.bind (checkQuery (Context.empty toyCtx)) |>.toOption).isSome
 
 -- Well-typed queries.
-#guard elaborates "{ g.n | g ∈ Graph, g.planar }"
-#guard elaborates "{ g.n | g ∈ Graph, g.n > 3 }"
-#guard elaborates "{ g.n, g.n | g ∈ Graph }"
-#guard elaborates "{ g.n, h.n | g ∈ Graph, h ∈ Graph, g.n = h.n }"
-#guard elaborates "{ g.n | g ∈ Graph, defined g.n }"
-#guard elaborates "{ g.n | g ∈ Graph, undefined g.planar ∨ g.n > 0 }"
+#guard elaborates (jq ["g.n"] "g.planar")
+#guard elaborates (jq ["g.n"] "g.n > 3")
+#guard elaborates (jq ["g.n", "g.n"] "true")
+#guard elaborates (jq ["g.n", "h.n"] "g.n = h.n")
+#guard elaborates (jq ["g.n"] "defined g.n")
+#guard elaborates (jq ["g.n"] "undefined g.planar ∨ g.n > 0")
 
 -- Ill-typed queries.
-#guard !elaborates "{ g.n | g ∈ Graph, g.n }"           -- condition is Int, not Bool
-#guard !elaborates "{ g.bogus | g ∈ Graph, g.planar }"  -- unknown output field
-#guard !elaborates "{ g.n | g ∈ Graph, g.planar + 1 }"  -- Bool used in arithmetic
+#guard !elaborates (jq ["g.n"] "g.n")            -- condition is Int, not Bool
+#guard !elaborates (jq ["g.bogus"] "g.planar")   -- unknown output field
+#guard !elaborates (jq ["g.n"] "g.planar + 1")   -- Bool used in arithmetic
 
 -- SQL expression rendering (shown for review, not asserted). Query rendering now
 -- needs a `Database`, so it is exercised by `Main` against `graphs-small.db`.

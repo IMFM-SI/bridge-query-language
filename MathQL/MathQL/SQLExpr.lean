@@ -26,6 +26,10 @@ def renderBinop : BinaryOp → String
 def renderCompareOp : ComparisonOp → String
   | .eq => "=" | .ne => "<>" | .lt => "<" | .le => "<=" | .gt => ">" | .ge => ">="
 
+/-- The SQL text of a sort direction. -/
+def renderDir : Direction → String
+  | .asc => "ASC" | .desc => "DESC"
+
 /-- The SQL text of a unary operator. -/
 def renderUnop : UnaryOp → String
   | .not => "NOT" | .neg => "-"

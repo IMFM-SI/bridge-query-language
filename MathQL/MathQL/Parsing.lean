@@ -159,25 +159,17 @@ private def outputItem : Parser (String × Option String) := do
   let x ← ident
   (do let l ← attempt (do tok "."; ident); return (x, some l)) <|> pure (x, none)
 
-/-- One domain binding, `x ∈ D`. -/
-private def binding : Parser (String × String) := do
-  let x ← ident
-  (keyword "in" <|> tok "∈")
-  let d ← ident
-  return (x, d)
+/-- Run a parser over an entire string, requiring it to consume all input. -/
+private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
+  (do ws; let r ← p; eof; return r).run s
 
-private def query : Parser Input.Query := do
-  ws; tok "{"
-  let output ← sepBy1 outputItem (tok ",")
-  tok "|"
-  let first ← binding
-  let more ← many (attempt (do tok ","; binding))
-  let condition ← (do tok ","; expr) <|> pure (Input.Expr.bool true)
-  tok "}"
-  eof
-  return { output, vars := first :: more.toList, condition }
+/-- Parse an expression from a string. Used by the JSON query decoder. -/
+def parseExpr : String → Except String Input.Expr := runComplete expr
 
-/-- Parse a MathQL query string. -/
-def parse (s : String) : Except String Input.Query := query.run s
+/-- Parse an output item (`x` or `x.label`) from a string. -/
+def parseOutputItem : String → Except String (String × Option String) := runComplete outputItem
+
+/-- Parse a single identifier from a string. -/
+def parseIdent : String → Except String String := runComplete ident
 
 end MathQL.Parsing
