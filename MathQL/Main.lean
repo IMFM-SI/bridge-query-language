@@ -1,28 +1,44 @@
 import MathQL.GraphsSmallDB
 import SQLite
 
-/-! Demonstrate the whole MathQL pipeline against `data/graphs-small.db`: parse a
-query string, type-check it against the database, execute it over the SQLite
-connection, and print the JSON result. -/
+/-! The `mathql` executable: a persistent query engine driven over stdin/stdout.
 
-/-- A sample query (JSON form): the three densest graphs on 5 vertices, ordered by
-number of edges (descending). -/
-def sampleQuery : Lean.Json :=
-  json% {
-    "domains":   [["g", "Graph"]],
-    "output":    ["g.graph6", "g.num_vertices", "g.num_edges"],
-    "condition": "g.num_vertices == 5",
-    "order":     [["g.num_edges", "desc"]],
-    "limit":     3
-  }
+It opens the database once, then reads one JSON request per line and writes one
+JSON response per line: `{"rows": …}` on success, `{"error": …}` on failure. This
+is the transport the Python MCP server (`python/mathql.py`) speaks to. -/
 
-open MathQL in
-def main : IO Unit := do
-  IO.println s!"query: {sampleQuery.compress}"
-  let db ← SQLite.openWith "../data/graphs-small.db" .readonly
-  match Input.Query.fromJson sampleQuery >>= checkQuery GraphsSmallDB.database.getContext with
-  | .error e => IO.eprintln s!"compile error: {e}"
+open MathQL
+
+/-- Run one request `Json` and produce its response `Json`. -/
+def handle (db : SQLite) (database : Database) (j : Lean.Json) : IO Lean.Json := do
+  match Input.Query.fromJson j >>= checkQuery database.getContext with
+  | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
   | .ok q =>
-    match ← run db GraphsSmallDB.database q with
-    | .error e => IO.eprintln s!"execution error: {e}"
-    | .ok json => IO.println json.pretty
+    match ← run db database q with
+    | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
+    | .ok rows => return Lean.Json.mkObj [("rows", rows)]
+
+/-- Read requests line by line until end of input, answering each on its own line. -/
+partial def loop (db : SQLite) (database : Database) : IO Unit := do
+  let line ← (← IO.getStdin).getLine
+  if line.isEmpty then
+    pure ()                                   -- end of input
+  else
+    let request := line.trimAscii.toString
+    if request.isEmpty then
+      loop db database                        -- blank line, skip
+    else
+      let response ← match Lean.Json.parse request with
+        | .error e => pure (Lean.Json.mkObj [("error", Lean.Json.str s!"invalid JSON: {e}")])
+        | .ok j => handle db database j
+      let stdout ← IO.getStdout
+      stdout.putStrLn response.compress
+      stdout.flush
+      loop db database
+
+/-- Open the database (path from the first argument, defaulting to the bundled
+`graphs-small.db`) and serve requests. -/
+def main (args : List String) : IO Unit := do
+  let dbPath := args.head?.getD "../data/graphs-small.db"
+  let db ← SQLite.openWith dbPath .readonly
+  loop db GraphsSmallDB.database
