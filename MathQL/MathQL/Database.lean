@@ -3,31 +3,28 @@ import MathQL.Ty
 
 namespace MathQL
 
-structure Field where
+structure InputField where
   /-- The field name in the query language -/
   label : Label
   /-- The column in the table -/
   column : String
   /-- The type of the field in the query langauge -/
-  ty: Ty
+  ty : Ty
 
 structure Domain where
-  /-- The named type that this domain denotes -/
-  name : Ident
   /-- The table/view in the database this domain refers to -/
   table : String
   /-- Fields of the type, equivalently the columns of the table -/
-  fields : List Field
-
-structure Enum where
-  /-- The name of the type that this enum denotes -/
-  name : Ident
-  /-- The mapping from constructors to SQL values -/
-  constructors : List (Ident × String)
+  inputField : List (Label × InputField)
+  /-- The output fields -/
+  Obj : Type
+  /-- Output fields -/
+  outputField : List (Label × Σ (t : Type), Obj → t)
 
 structure Database where
-  domains : List Domain
-  enums : List Enum
-
+  /-- The constants known to this database -/
+  const : List (Ident × Ty × String) -- TODO: shouldn't be a string, but something like SQLExpression
+  /-- The domains/tables known to this database -/
+  domain : List (DomainName × Domain)
 
 end MathQL

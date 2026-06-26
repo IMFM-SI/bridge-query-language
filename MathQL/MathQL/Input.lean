@@ -5,45 +5,28 @@ elaboration into a typed term. -/
 
 namespace MathQL.Input
 
-/-- Input type expressions, as written in an ascription `(e : τ)`. A bare
-    name denotes a domain or an enumeration, resolved against the schema. -/
-inductive Ty where
-  | int
-  | bool
-  | string
-  | option (t : Ty)
-  | list (t : Ty)
-  | prod (ts : List Ty)
-  | name (n : String)
-deriving Repr, BEq
-
 /-- Input expressions. -/
 inductive Expr where
-  | int (n : Int)
-  | bool (b : Bool)
-  | str (s : String)
-  | var (x : String)
-  | field (e : Expr) (label : String)
-  | proj (e : Expr) (idx : Nat)
-  | nil
-  | cons (head tail : Expr)
-  | listLit (items : List Expr)
-  | someE (e : Expr)
-  | noneE
-  | enumCtor (c : String)
-  | ite (cond thn els : Expr)
-  | tuple (items : List Expr)
-  | ascribe (e : Expr) (ty : Ty)
-  | unop (op : UnaryOp) (e : Expr)
-  | binop (op : BinaryOp) (l r : Expr)
+  | int : Int → Expr
+  | bool : Bool → Expr
+  | str : String → Expr
+  | const : String → Expr
+  | field : String → String → Expr
+  | proj : Expr → Nat → Expr
+  | nil : Expr
+  | cons : Expr → Expr → Expr
+  | listLit : List Expr → Expr
+  | ite : Expr → Expr → Expr → Expr
+  | tuple : List Expr → Expr
+  | unop : UnaryOp → Expr → Expr
+  | binop : BinaryOp → Expr → Expr → Expr
 deriving Repr
 
-/-- A top-level query `{ result | var ∈ domain, condition }`. A query is not an
+/-- A top-level query `{ output | var ∈ domain, condition }`. A query is not an
     expression: it cannot nest or appear as a subterm. -/
 structure Query where
-  result : Expr
-  var : String
-  domain : String
+  output : List (String × String)
+  vars : List (String × String)
   condition : Expr
 deriving Repr
 

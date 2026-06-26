@@ -3,7 +3,7 @@ import Std.Internal.Parsec.String
 import MathQL.Input
 
 /-! A parser for MathQL concrete syntax, built on `Std.Internal.Parsec`.
-UTF-8 operators (`∈ ∧ ∨ ¬ ≠ ≤ ≥ ⇒`) and ASCII synonyms (`in && || ! != <= >= =>`)
+UTF-8 operators (`∈ ∧ ∨ ¬ ≠ ≤ ≥`) and ASCII synonyms (`in && || ! != <= >=`)
 are both accepted. -/
 
 namespace MathQL.Parsing
@@ -30,7 +30,7 @@ private def isIdentStart (c : Char) : Bool := c.isAlpha || c == '_'
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
 
 private def keywords : List String :=
-  ["if", "then", "else", "some", "none", "true", "false"]
+  ["if", "then", "else", "in", "true", "false"]
 
 /-- A literal token, skipping trailing whitespace. -/
 private def tok (s : String) : Parser Unit := do skipString s; ws
@@ -75,16 +75,6 @@ private def compareOp : Parser BinaryOp :=
 
 mutual
 
-private partial def ptype : Parser Input.Ty :=
-  (keyword "Int" *> pure .int) <|>
-  (keyword "Bool" *> pure .bool) <|>
-  (keyword "String" *> pure .string) <|>
-  (do keyword "Option"; return .option (← ptype)) <|>
-  (do keyword "List"; return .list (← ptype)) <|>
-  (do tok "("; let ts ← sepBy ptype (tok ","); tok ")";
-      return match ts with | [t] => t | _ => .prod ts) <|>
-  (do return .name (← ident))
-
 private partial def expr : Parser Input.Expr :=
   ifExpr <|> consExpr
 
@@ -121,13 +111,13 @@ private partial def unaryExpr : Parser Input.Expr :=
   postfixExpr
 
 private partial def postfixExpr : Parser Input.Expr := do
-  postfixCore (← atomExpr)
+  postfixProj (← atomExpr)
 
-private partial def postfixCore (e : Input.Expr) : Parser Input.Expr :=
-  (do tok "."
-      let step ← (do return .proj e (← intLitNat)) <|> (do return .field e (← ident))
-      postfixCore step) <|>
-  pure e
+/-- Apply any number of tuple projections `.i` (with `i` a numeral). Field
+    access `x.label` is handled at the atom, since a field projects a domain
+    variable, not an arbitrary expression. -/
+private partial def postfixProj (e : Input.Expr) : Parser Input.Expr :=
+  (do let i ← attempt (do tok "."; intLitNat); postfixProj (.proj e i)) <|> pure e
 
 private partial def intLitNat : Parser Nat := do
   let n ← digits
@@ -138,37 +128,53 @@ private partial def atomExpr : Parser Input.Expr :=
   (do return .int (← intLit)) <|>
   (keyword "true" *> pure (.bool true)) <|>
   (keyword "false" *> pure (.bool false)) <|>
-  (keyword "none" *> pure .noneE) <|>
-  (do keyword "some"; return .someE (← atomExpr)) <|>
   (do return .str (← stringLit)) <|>
-  (do tok "."; return .enumCtor (← ident)) <|>
   (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .listLit items) <|>
-  (do return .var (← ident))
+  parenExpr <|>
+  identExpr
+
+/-- A bare identifier is a constant; `x.label` is a field projection off the
+    domain variable `x`. -/
+private partial def identExpr : Parser Input.Expr := do
+  let x ← ident
+  (do let l ← attempt (do tok "."; ident); return Input.Expr.field x l) <|>
+  pure (Input.Expr.const x)
 
 private partial def parenExpr : Parser Input.Expr := do
   tok "("
   let first ← expr
-  let r ← (do tok ":"; return Sum.inl (← ptype)) <|>
-          (do let more ← many (do tok ","; expr); return Sum.inr more.toList)
+  let more ← many (do tok ","; expr)
   tok ")"
-  return match r with
-    | Sum.inl ty => .ascribe first ty
-    | Sum.inr [] => first
-    | Sum.inr more => .tuple (first :: more)
+  return match more.toList with
+    | [] => first
+    | rest => .tuple (first :: rest)
 
 end
 
+/-- One output item, `x.label`. -/
+private def outputItem : Parser (String × String) := do
+  let x ← ident
+  tok "."
+  let l ← ident
+  return (x, l)
+
+/-- One domain binding, `x ∈ D`. -/
+private def binding : Parser (String × String) := do
+  let x ← ident
+  (keyword "in" <|> tok "∈")
+  let d ← ident
+  return (x, d)
+
 private def query : Parser Input.Query := do
   ws; tok "{"
-  let result ← expr
+  let output ← sepBy1 outputItem (tok ",")
   tok "|"
-  let var ← ident
-  (keyword "in" <|> tok "∈")
-  let domain ← ident
-  let condition ← (do tok ","; expr) <|> pure (.bool true)
+  let first ← binding
+  let more ← many (attempt (do tok ","; binding))
+  let condition ← (do tok ","; expr) <|> pure (Input.Expr.bool true)
   tok "}"
   eof
-  return { result, var, domain, condition }
+  return { output, vars := first :: more.toList, condition }
 
 /-- Parse a MathQL query string. -/
 def parse (s : String) : Except String Input.Query := query.run s

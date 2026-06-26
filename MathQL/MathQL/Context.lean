@@ -4,49 +4,58 @@ import MathQL.Ty
 
 namespace MathQL
 
-abbrev TyDefs := List (Ident × TyDef)
+/-- The typing info of a domain. -/
+structure DomainTy where
+  inputField : List (Label × Ty)
+  outputField : List Label
+
+/-- A context describing which domains are available, with their typing info. -/
+abbrev DomainContext := List (DomainName × DomainTy)
+
+def DomainContext.empty : DomainContext := []
+
+def DomainContext.extend (D : DomainContext) (x : DomainName) (d : DomainTy) : DomainContext :=
+  (x, d) :: D
+
+inductive Context.Entry where
+  | const : Ty → Entry
+  | domain : DomainTy → Entry
 
 /-- Contexts. -/
 structure Context where
-  tyDefs : TyDefs
-  var : List (Ident × Ident)
+  domain : DomainContext
+  var : List (Ident × Context.Entry)
 
-def Context.lookupVar (Γ : Context) (x : Ident) : Option Ty :=
-  Γ.var.lookup x
+def Context.lookupConst (Γ : Context) (x : Ident) : Option Ty := do
+  let ent ← Γ.var.lookup x
+  match ent with
+  | .const t => return t
+  | .domain _ => .none
 
-def Context.lookupRecord (Γ : Context) (n : Ident) : Option (List (Label × Ty)) :=
-  match Γ.tyDefs.lookup n with
-  | .none => .none
-  | .some (.enum _) => .none
-  | .some (.record fields) => .some fields
+private def Context.lookupVar (Γ : Context) (x : Ident) : Option DomainTy := do
+  let ent ← Γ.var.lookup x
+  match ent with
+  | .const _ => .none
+  | .domain d => return d
 
-def Context.lookupEnum (Γ : Context) (n : Ident) : Option (List Ident) :=
-  match Γ.tyDefs.lookup n with
-  | .none => .none
-  | .some (.record _) => .none
-  | .some (.enum cs) => .some cs
+def Context.lookupInputField (Γ : Context) (x : Ident) (l : Label) : Option Ty := do
+  let d ← Γ.lookupVar x
+  d.inputField.lookup l
 
-def Context.findEnum (Γ : Context) (c : Ident) : Option Ident :=
-  let rec search : TyDefs → Option Ident
-    | [] => .none
-    | (_, .record _) :: ds => search ds
-    | (n, .enum cs) :: ds => if c ∈ cs then .some n else search ds
-  search Γ.tyDefs
+def Context.isOutputField (Γ : Context) (x : Ident) (l : Label) : Option Bool := do
+  let d ← Γ.lookupVar x
+  return (d.outputField.elem l)
 
-def Context.findLabel (Γ : Context) (l : Label) : Option (Ident × Ty) :=
-  let rec search : TyDefs → Option (Ident × Ty)
-    | [] => .none
-    | (_, .enum _) :: ds => search ds
-    | (n, .record fields) :: ds =>
-      match fields.lookup l with
-      | .none => search ds
-      | .some t => .some (n, t)
-  search Γ.tyDefs
-
-def Context.empty (tyDefs : TyDefs) : Context where
-  tyDefs := tyDefs
+def Context.empty (D : DomainContext) : Context where
+  domain := D
   var := []
 
-def Context.extend (Γ : Context) (x : Ident) (t : Ty) : Context where
-  tyDefs := Γ.tyDefs
-  var := (x, t) :: Γ.var
+def Context.extend (Γ : Context) (x : Ident) (ent : Entry) : Context :=
+  { domain := Γ.domain, var := (x, ent) :: Γ.var }
+
+def Context.extendMany (Γ : Context) : List (Ident × DomainName) → Option Context
+| [] => return Γ
+| (x, n) :: xns => do
+  let d ← Γ.domain.lookup n
+  let Γ := Γ.extend x (.domain d)
+  Γ.extendMany xns

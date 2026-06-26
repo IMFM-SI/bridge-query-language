@@ -8,9 +8,9 @@ mutual
 
 inductive ExprOfTy : Context → Expr → Ty → Prop where
 
-  | var : ∀ {Γ : Context} {x t},
-        Γ.lookupVar x = .some t →
-        ExprOfTy Γ (.var x) t
+  | const : ∀ {Γ : Context} {x t},
+        Γ.lookupConst x = .some t →
+        ExprOfTy Γ (.const x) t
 
   | int : ∀ {Γ n},
         ExprOfTy Γ (.int n) .int
@@ -21,14 +21,9 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
   | str : ∀ {Γ s},
         ExprOfTy Γ (.str s) .string
 
-  | enum : ∀ {Γ n c},
-        Γ.findEnum c = .some n →
-        ExprOfTy Γ (.enum c) (.name n)
-
-  | field : ∀ {Γ e n l t},
-        Γ.findLabel l = .some (n, t) →
-        ExprOfTy Γ e (.name n) →
-        ExprOfTy Γ (.field e l) t
+  | field : ∀ {Γ n l t},
+        Γ.lookupInputField n l = .some t →
+        ExprOfTy Γ (.field n l) t
 
   | unop : ∀ {Γ op e t₁ t₂},
         unaryTy op = (t₁, t₂) →
@@ -57,13 +52,6 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
         ExprOfTy Γ es (.list t) →
         ExprOfTy Γ (.cons e es) (.list t)
 
-  | someE : ∀ {Γ e t},
-        ExprOfTy Γ e t →
-        ExprOfTy Γ (.someE e) (.option t)
-
-  | noneE : ∀ {Γ t},
-        ExprOfTy Γ .noneE (.option t)
-
   | ite : ∀ {Γ c a b t},
         ExprOfTy Γ c .bool →
         ExprOfTy Γ a t →
@@ -75,14 +63,3 @@ inductive TupleOfTy : Context → List Expr → List Ty → Prop where
   | cons : ∀ {Γ e t es ts}, ExprOfTy Γ e t → TupleOfTy Γ es ts → TupleOfTy Γ (e :: es) (t :: ts)
 
 end
-
-/-- A comprehension `{ result | var ∈ domain, condition }`. -/
-structure Query (tyDefs : TyDefs) where
-  result : Expr
-  resultTy : Ty
-  var : Ident
-  domain : Ty
-  resultOfTy : ExprOfTy ((Context.empty tyDefs).extend var domain) result resultTy
-  condition : Expr
-  conditionOfBool : ExprOfTy ((Context.empty tyDefs).extend var domain) condition .bool
-deriving Repr

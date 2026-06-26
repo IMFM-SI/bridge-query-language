@@ -3,33 +3,9 @@ import MathQL.Result
 import MathQL.Context
 import MathQL.Expr
 import MathQL.Rules
+import MathQL.Query
 
 namespace MathQL
-
-mutual
-
-/-- Resolve an input type annotation to a core type. -/
-def Input.Ty.toCore : Input.Ty → _root_.MathQL.Ty
-  | .name n => .name (.ident n)
-
-  | .int => .int
-
-  | .bool => .bool
-
-  | .string => .string
-
-  | .option t => .option t.toCore
-
-  | .list t => .list t.toCore
-
-  | .prod ts => .prod (Input.Ty.toCoreList ts)
-
-def Input.Ty.toCoreList : List Input.Ty → List _root_.MathQL.Ty
-  | [] => []
-
-  | t :: ts => t.toCore :: Input.Ty.toCoreList ts
-
-end
 
 mutual
 
@@ -42,11 +18,6 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
     match t with
     | .list _ => .ok ⟨.nil, .nil⟩
     | _ => .error s!"expected {repr t}, but got a list"
-
-  | .noneE =>
-    match t with
-    | .option _ => .ok ⟨.noneE, .noneE⟩
-    | _ => .error s!"expected {repr t}, but got an option"
 
   | .ite e₁ e₂ e₃ => do
     let ⟨c, hc⟩ ← check Γ e₁ .bool
@@ -77,25 +48,18 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
 
   | .str s => .ok ⟨.string, .str s, .str⟩
 
-  | .enumCtor c' =>
-    let c := .ident c'
-    match h : Γ.findEnum c with
-    | some n => .ok ⟨.name n, .enum c, .enum h⟩
-    | none => .error s!"unknown constructor '.{c'}'"
-
-  | .var x' =>
+  | .const x' =>
     let x := .ident x'
-    match h : Γ.lookupVar x with
-    | some t => .ok ⟨t, .var x, .var h⟩
-    | none => .error s!"unbound variable '{x'}'"
+    match h : Γ.lookupConst x with
+    | some t => .ok ⟨t, .const x, .const h⟩
+    | none => .error s!"unbound constant '{x'}'"
 
-  | .field e l' =>
+  | .field x' l' =>
+    let x := .ident x'
     let l := .label l'
-    match h : Γ.findLabel l with
-    | some (n, t) => do
-      let ⟨e', he⟩ ← check Γ e (.name n)
-      return ⟨t, .field e' l, .field h he⟩
-    | none => .error s!"unknown field '{l'}'"
+    match h : Γ.lookupInputField x l with
+    | some t => return ⟨t, .field x l, .field h⟩
+    | none => .error s!"{x'} does not have field '{l'}'"
 
   | .proj e idx => do
     let ⟨te, e', he⟩ ← infer Γ e
@@ -119,14 +83,6 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
       let ⟨e₂', h₂⟩ ← check Γ e₂ t₂
       return ⟨t₃, .binop op e₁' e₂', .binop h h₁ h₂⟩
 
-  | .ascribe e ty => do
-    let ⟨e', he⟩ ← check Γ e ty.toCore
-    return ⟨ty.toCore, e', he⟩
-
-  | .someE e => do
-    let ⟨t, e', he⟩ ← infer Γ e
-    return ⟨.option t, .someE e', .someE he⟩
-
   | .cons e es => do
     let ⟨t, e', he⟩ ← infer Γ e
     let ⟨es', hes⟩ ← check Γ es (.list t)
@@ -147,8 +103,8 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     let ⟨ts, es', h⟩ ← inferTuple Γ es
     return ⟨.prod ts, .tuple es', .tuple h⟩
 
-  | .nil | .listLit [] | .noneE =>
-    .error "cannot infer a type for this expression; add an annotation"
+  | .nil | .listLit [] =>
+    .error "cannot infer the type of this empty list"
 
 /-- Check a tuple's components against the product's component types. -/
 def checkTuple (Γ : Context) :
@@ -188,17 +144,30 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkQuery (tyDefs : TyDefs) (q : Input.Query) : Result (Query tyDefs) := do
-  let ⟨result, var, domain, condition⟩ := q
-  let Γ := (Context.empty tyDefs).extend (.ident var) (.name (.ident domain))
-  let ⟨resultTy, result, hr⟩ ← infer Γ result
-  let ⟨condition, hc⟩ ← check Γ condition .bool
-  return { result := result,
-           resultTy := resultTy,
-           var := .ident var,
-           domain := .name (.ident domain),
-           condition := condition,
-           resultOfTy := hr,
-           conditionOfBool := hc}
+def checkOutput (Γ : Context) : List (String × String) → Result (List (Ident × Label))
+| [] => return []
+| (x', l') :: xls => do
+  let x := .ident x'
+  let l := .label l'
+  match Γ.isOutputField x l with
+  | .none | .some false => .error s!"{x'} does not have output field {l'}"
+  | .some true => do
+    let xls ← checkOutput Γ xls
+    return ((x, l) :: xls)
+
+def checkDomainVars (Γ : Context) : List (String × String) → Result Context
+| [] => return Γ
+| (x, n') :: xns => do
+  let n := .domain n'
+  match Γ.domain.lookup n with
+  | .none => .error s!"unkknown domain {n'}"
+  | .some d => checkDomainVars (Γ.extend (.ident x) (.domain d)) xns
+
+def checkQuery (D : DomainContext) (q : Input.Query) : Result Query := do
+  let ⟨output, vars, condition⟩ := q
+  let Γ ← checkDomainVars (Context.empty D) vars
+  let output ← checkOutput Γ output
+  let ⟨condition, conditionBool⟩ ← check Γ condition .bool
+  return { context := Γ, condition, conditionBool, output }
 
 end MathQL
