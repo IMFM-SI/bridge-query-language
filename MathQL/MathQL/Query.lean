@@ -5,9 +5,8 @@ import MathQL.Rules
 namespace MathQL
 
 structure Query where
-  context : Context
+  vars : List (Ident × DomainName)
   condition : Expr
-  conditionBool : ExprOfTy context condition .bool
   output : List (Ident × Label)
 
 end MathQL

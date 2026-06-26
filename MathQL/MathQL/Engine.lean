@@ -1,7 +1,7 @@
 import SQLite
-import MathQL.Compile
-import MathQL.Databases
-import MathQL.Parser
+-- import MathQL.Compile
+-- import MathQL.Databases
+-- import MathQL.Parser
 
 /-! Running a query: compile to SQL, execute through leansqlite, and read each
 row back into a `Value`. -/
@@ -9,6 +9,7 @@ row back into a `Value`. -/
 namespace MathQL
 
 open SQLite
+
 
 /-- Read this plan's value from the current row, starting at column `col`
     (0-indexed); returns the value and the next free column index. -/

@@ -1,88 +1,89 @@
-import MathQL.Syntax
-import MathQL.Schema
+import MathQL.Name
+import MathQL.Expr
+import MathQL.Result
+import MathQL.SQL
+import MathQL.Database
+import MathQL.Query
 
-/-! Compilation of a `Query` to SQL plus a plan describing how to read each
-result row back into a `Value`. -/
+/-! Compilation of a type-checked query to a SQL query, and of its condition to
+a SQL expression. Lists and tuples have no SQL form and are rejected. -/
 
 namespace MathQL
 
-/-- How to read a query's returned value out of a result row. -/
-inductive Plan where
-  | scalar (sql : String) (params : List Param) (kind : ColumnKind)
-  | object (attrs : List Attribute)
-  | tuple (parts : List Plan)
-deriving Inhabited
+/-- What compiling a condition needs: each `x.label` resolves to a
+    `(table-alias, column)`, and each constant to its SQL literal. -/
+structure SqlCtx where
+  field : Ident → Label → Option (String × String)
+  const : Ident → Option SQL.Expr
 
-private def sqlBinop : String → Option String
-  | "and" => "AND" | "or" => "OR"
-  | "eq" => "=" | "ne" => "<>" | "le" => "<=" | "lt" => "<" | "ge" => ">=" | "gt" => ">"
-  | "add" => "+" | "sub" => "-" | "mul" => "*"
-  | _ => none
+/-- Compile a typed condition expression to a SQL expression. -/
+def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
+  match e with
+  | .int n => return .int n
 
-/-- Compile a scalar expression to a SQL fragment with its `?`-parameters. -/
-private def compileScalar (d : Domain) : Expr → Except String (String × List Param)
-  | .int n => .ok ("?", [.int n])
-  | .bool b => .ok ("?", [.int (if b then 1 else 0)])
-  | .str s => .ok ("?", [.str s])
-  | .var _ => .error "the object itself cannot appear in a condition"
-  | .field (.var _) label =>
-    match d.find? label with
-    | some attr => .ok (attr.column, [])
-    | none => .error s!"unknown invariant '{label}' in domain '{d.name}'"
-  | .field _ _ => .error "nested field access (joins) is not supported yet"
-  | .unop "not" e => do let (s, p) ← compileScalar d e; .ok ("(NOT " ++ s ++ ")", p)
-  | .unop "neg" e => do let (s, p) ← compileScalar d e; .ok ("(-" ++ s ++ ")", p)
-  | .unop op _ => .error s!"unknown unary operator '{op}'"
-  | .binop op l r => do
-    let some sym := sqlBinop op | .error s!"unknown operator '{op}'"
-    let (ls, lp) ← compileScalar d l
-    let (rs, rp) ← compileScalar d r
-    .ok (s!"({ls} {sym} {rs})", lp ++ rp)
-  | .tuple _ => .error "a tuple cannot appear in a condition"
+  | .bool b => return .bool b
 
-private def boolOps : List String := ["and", "or", "eq", "ne", "le", "lt", "ge", "gt"]
+  | .str s => return .str s
 
-private def scalarKind (d : Domain) : Expr → ColumnKind
-  | .int _ => .int
-  | .bool _ => .bool
-  | .str _ => .string
-  | .field (.var _) l => ((d.find? l).map (·.kind)).getD .int
-  | .unop "not" _ => .bool
-  | .binop op _ _ => if boolOps.contains op then .bool else .int
-  | _ => .int
+  | .const x =>
+    match Γ.const x with
+    | some s => return s
+    | none => throw s!"unknown constant {repr x}"
 
-private def compileReturn (d : Domain) : Expr → Except String Plan
-  | .var _ => .ok (.object d.attributes)
-  | .tuple items => .tuple <$> items.mapM (compileReturn d)
-  | e => do
-    let (sql, params) ← compileScalar d e
-    .ok (.scalar sql params (scalarKind d e))
+  | .field x l =>
+    match Γ.field x l with
+    | some (table, column) => return .col table column
+    | none => throw s!"no column for {repr x}.{repr l}"
 
-def Plan.selectExprs : Plan → List String
-  | .scalar sql _ _ => [sql]
-  | .object attrs => attrs.map (·.column)
-  | .tuple parts => parts.flatMap Plan.selectExprs
+  | .unop op e =>
+    let s ← toSQL Γ e
+    return .unop op s
 
-def Plan.params : Plan → List Param
-  | .scalar _ p _ => p
-  | .object _ => []
-  | .tuple parts => parts.flatMap Plan.params
+  | .binop op e₁ e₂ =>
+    let s₁ ← toSQL Γ e₁
+    let s₂ ← toSQL Γ e₂
+    return .binop op s₁ s₂
 
-/-- The full SQL statement, its parameters, and the row-reading plan. -/
-structure Compiled where
-  sql : String
-  params : List Param
-  plan : Plan
+  | .ite c a b =>
+    let sc ← toSQL Γ c
+    let sa ← toSQL Γ a
+    let sb ← toSQL Γ b
+    return .case sc sa sb
 
-def compileQuery (db : Database) (q : Query) : Except String (Domain × Compiled) := do
-  let some domain := db.domain? q.domain
-    | .error s!"unknown domain '{q.domain}'"
-  let plan ← compileReturn domain q.result
-  let (whereSql, whereParams) ← match q.condition with
-    | some c => compileScalar domain c
-    | none => .ok ("1", [])
-  let select := ", ".intercalate plan.selectExprs
-  let sql := s!"SELECT {select} FROM {domain.table} WHERE {whereSql}"
-  .ok (domain, { sql, params := plan.params ++ whereParams, plan })
+  | .defined e =>
+    let s ← toSQL Γ e
+    return .isNotNull s
+
+  | .undefined e =>
+    let s ← toSQL Γ e
+    return .isNull s
+
+  | .tuple _ => throw "tuples have no SQL form"
+
+  | .proj _ _ => throw "tuple projection has no SQL form"
+
+  | .nil => throw "lists have no SQL form"
+
+  | .cons _ _ => throw "lists have no SQL form"
+
+/-- The resolution context for a query whose variables are bound to the given schemas. -/
+def SqlCtx.ofBindings (D : Database) (binds : List (Ident × Schema)) : SqlCtx where
+  field x l :=
+    match binds.lookup x with
+    | none => none
+    | some s => (s.inputField.lookup l).map fun f => (x.name, f.column)
+  const c := (D.const.lookup c).map Prod.snd
+
+/-- Compile a type-checked query to a SQL query. -/
+def compile (D : Database) (q : Query) : Result SQL.Query := do
+  let binds : List (Ident × Schema) ← q.vars.mapM fun (x, n) =>
+    match D.domain.lookup n with
+    | some dom => pure (x, dom.toSchema)
+    | none => throw s!"unknown domain {repr n}"
+  let cond ← toSQL (SqlCtx.ofBindings D binds) q.condition
+  return {
+    select := binds.flatMap fun (x, s) => s.select.map (.col x.name)
+    tables := binds.map fun (x, s) => (s.table, x.name)
+    cond }
 
 end MathQL

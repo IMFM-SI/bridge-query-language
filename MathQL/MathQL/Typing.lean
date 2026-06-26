@@ -17,7 +17,7 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
   | .nil | .listLit [] =>
     match t with
     | .list _ => .ok ⟨.nil, .nil⟩
-    | _ => .error s!"expected {repr t}, but got a list"
+    | _ => throw s!"expected {repr t}, but got a list"
 
   | .ite e₁ e₂ e₃ => do
     let ⟨c, hc⟩ ← check Γ e₁ .bool
@@ -30,12 +30,12 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
     | .prod ts => do
       let ⟨es', h⟩ ← checkTuple Γ es ts
       return ⟨.tuple es', .tuple h⟩
-    | _ => .error s!"expected {repr t}, but got a tuple"
+    | _ => throw s!"expected {repr t}, but got a tuple"
 
   | e => do
     let ⟨t', e', h⟩ ← infer Γ e
     if heq : t' == t then .ok ⟨e', Ty.eq_of_beq t' t heq ▸ h⟩
-    else .error s!"type mismatch: expected {repr t}, but got {repr t'}"
+    else throw s!"type mismatch: expected {repr t}, but got {repr t'}"
 
 /-- Infer a type for `e` in context `Γ`, elaborating it to a typed expression.
     Inferring forms are handled here; checking-only forms are an error. -/
@@ -52,14 +52,14 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     let x := .ident x'
     match h : Γ.lookupConst x with
     | some t => .ok ⟨t, .const x, .const h⟩
-    | none => .error s!"unbound constant '{x'}'"
+    | none => throw s!"unbound constant '{x'}'"
 
   | .field x' l' =>
     let x := .ident x'
     let l := .label l'
     match h : Γ.lookupInputField x l with
     | some t => return ⟨t, .field x l, .field h⟩
-    | none => .error s!"{x'} does not have field '{l'}'"
+    | none => throw s!"{x'} does not have field '{l'}'"
 
   | .proj e idx => do
     let ⟨te, e', he⟩ ← infer Γ e
@@ -67,8 +67,8 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     | .prod ts, hp =>
       match h : ts[idx]? with
       | some t => .ok ⟨t, .proj e' idx, .proj hp h⟩
-      | none => .error s!"projection index {idx} out of range"
-    | _, _ => .error "projection of a non-product"
+      | none => throw s!"projection index {idx} out of range"
+    | _, _ => throw "projection of a non-product"
 
   | .unop op e =>
     match h : unaryTy op with
@@ -112,7 +112,7 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     return ⟨.prod ts, .tuple es', .tuple h⟩
 
   | .nil | .listLit [] =>
-    .error "cannot infer the type of this empty list"
+    throw "cannot infer the type of this empty list"
 
 /-- Check a tuple's components against the product's component types. -/
 def checkTuple (Γ : Context) :
@@ -124,7 +124,7 @@ def checkTuple (Γ : Context) :
     let ⟨es', hes⟩ ← checkTuple Γ es ts
     return ⟨e' :: es', .cons he hes⟩
 
-  | [], _ :: _ | _ :: _, [] => .error "tuple has the wrong number of components"
+  | [], _ :: _ | _ :: _, [] => throw "tuple has the wrong number of components"
 
 /-- Infer types for a tuple's components. -/
 def inferTuple (Γ : Context) :
@@ -158,24 +158,26 @@ def checkOutput (Γ : Context) : List (String × String) → Result (List (Ident
   let x := .ident x'
   let l := .label l'
   match Γ.isOutputField x l with
-  | .none | .some false => .error s!"{x'} does not have output field {l'}"
+  | .none | .some false => throw s!"{x'} does not have output field {l'}"
   | .some true => do
     let xls ← checkOutput Γ xls
     return ((x, l) :: xls)
 
-def checkDomainVars (Γ : Context) : List (String × String) → Result Context
-| [] => return Γ
-| (x, n') :: xns => do
+def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
+    List (String × String) → Result (Context × List (Ident × DomainName))
+| [] => return (Γ, acc.reverse)
+| (x', n') :: xns => do
+  let x := .ident x'
   let n := .domain n'
   match Γ.domain.lookup n with
-  | .none => .error s!"unkknown domain {n'}"
-  | .some d => checkDomainVars (Γ.extend (.ident x) (.domain d)) xns
+  | .none => throw s!"unknown domain {n'}"
+  | .some d => checkDomainVars (Γ.extend x (.domain d)) ((x, n) :: acc) xns
 
-def checkQuery (D : DomainContext) (q : Input.Query) : Result Query := do
+def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let ⟨output, vars, condition⟩ := q
-  let Γ ← checkDomainVars (Context.empty D) vars
+  let ⟨Γ, vars⟩ ← checkDomainVars Γ [] vars
   let output ← checkOutput Γ output
-  let ⟨condition, conditionBool⟩ ← check Γ condition .bool
-  return { context := Γ, condition, conditionBool, output }
+  let ⟨condition, _⟩ ← check Γ condition .bool
+  return { vars, condition, output }
 
 end MathQL
