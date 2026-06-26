@@ -26,14 +26,17 @@ database holds those objects. The query language is defined in
   automatically; no separate Lean install is needed.
 - A **C compiler** (clang or gcc) — the SQLite binding compiles a bundled copy
   of SQLite. On macOS, the Xcode Command Line Tools (`xcode-select --install`).
-- **leansqlite**, cloned as a sibling of this repository at `../leansqlite`.
-- For generating the small-graphs database: **nauty** (`geng`) and Python with
-  **networkx**.
-- For the MCP server: Python with the **mcp** package.
+- **leansqlite** — fetched automatically by Lake as a git dependency (over SSH);
+  no manual clone needed.
+- For the MCP server: Python with the **mcp** package; the `mcp[cli]` extra adds
+  the `mcp` dev tool used to test the server.
+- For regenerating the small-graphs database (optional): **nauty** (`geng`) and
+  Python with **networkx**.
 
 ```
 python3 -m venv .venv && source .venv/bin/activate
-python -m pip install networkx mcp
+python -m pip install "mcp[cli]"      # the MCP server
+python -m pip install networkx        # only to regenerate databases
 ```
 
 ## Building the engine
@@ -65,30 +68,34 @@ The databases live in `data/` and are not checked into git.
 
 ## Running queries
 
-A query is a comprehension over a domain of objects. Run it from the `MathQL/`
-directory (the executable resolves `../data` relative to its working
-directory):
+The `mathql` executable opens a database and serves requests over stdin/stdout:
+one JSON request per line, one JSON response per line. Run it from the `MathQL/`
+directory (it resolves `../data/graphs-small.db` by default, or takes a database
+path as its argument):
 
 ```
 cd MathQL
-lake exe mathql '{ (g.num_vertices, g.num_edges) | g ∈ SmallGraphs, g.is_tree }'
-lake exe mathql --count '{ g | g ∈ SmallGraphs, g.is_planar ∧ g.is_connected }'
-lake exe mathql '{ m.schlafli_symbol | m ∈ Maniplexes, m.size = 8 ∧ m.orientable }'
+lake exe mathql
 ```
 
-The domain named in the query (`SmallGraphs`, `Maniplexes`) selects the
-database; you never name a table or a file. UTF-8 operators (`∈ ∧ ∨ ¬ ≠ ≤ ≥`)
-and their ASCII synonyms (`in && || ! != <= >=`) are both accepted.
+- `{"describe": true}` returns the schema: each domain with its fields and types,
+  the constants, and example queries.
+- A query object returns `{"rows": [...]}` or `{"error": "..."}`. For example:
 
-`mathql describe` prints the JSON schema of every domain, and `mathql serve`
-reads one query per line and writes one JSON result per line.
+```
+{"domains": [["g", "Graph"]], "output": ["g.graph6", "g.num_edges"], "condition": "g.num_vertices == 5", "order": [["g.num_edges", "desc"]], "limit": 3}
+```
+
+Conditions and order entries are expressions of the query language. ASCII
+operators (`== != < <= > >=`, `&& || !`, `defined`/`undefined`) are recommended;
+the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also accepted.
 
 ## MCP server
 
-`python python/mcp_server.py` starts an MCP server that exposes MathQL to an AI
-agent as two tools — `describe_schema` and `query` — forwarding to the compiled
-`mathql` executable. Point an MCP client at that command (with the project's
-virtual environment active).
+`python python/mathql.py` starts an MCP server exposing MathQL to an agent as two
+tools — `describe` and `query` — backed by one persistent `mathql` subprocess.
+Point an MCP client at that command (with `mcp` installed), or run
+`mcp dev python/mathql.py` for the inspector.
 
 ## Tests
 
