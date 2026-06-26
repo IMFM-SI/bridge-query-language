@@ -11,12 +11,15 @@ open MathQL
 
 /-- Run one request `Json` and produce its response `Json`. -/
 def handle (db : SQLite) (database : Database) (j : Lean.Json) : IO Lean.Json := do
-  match Input.Query.fromJson j >>= checkQuery database.getContext with
-  | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
-  | .ok q =>
-    match ← run db database q with
+  match j.getObjVal? "describe" with
+  | .ok _ => return database.schema
+  | .error _ =>
+    match Input.Query.fromJson j >>= checkQuery database.getContext with
     | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
-    | .ok rows => return Lean.Json.mkObj [("rows", rows)]
+    | .ok q =>
+      match ← run db database q with
+      | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
+      | .ok rows => return Lean.Json.mkObj [("rows", rows)]
 
 /-- Read requests line by line until end of input, answering each on its own line. -/
 partial def loop (db : SQLite) (database : Database) : IO Unit := do

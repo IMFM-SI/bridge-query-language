@@ -67,6 +67,23 @@ instance : LawfulBEq Ty where
   rfl {a} := Ty.beq_refl a
   eq_of_beq {a b} h := Ty.eq_of_beq a b h
 
+mutual
+
+/-- Render a type as a short string for the schema, e.g. `int`, `list int`. -/
+def Ty.render : Ty → String
+  | .int => "int"
+  | .bool => "bool"
+  | .string => "string"
+  | .list t => s!"list {Ty.render t}"
+  | .prod ts => "prod [" ++ Ty.renderList ts ++ "]"
+
+def Ty.renderList : List Ty → String
+  | [] => ""
+  | [t] => Ty.render t
+  | t :: ts => Ty.render t ++ ", " ++ Ty.renderList ts
+
+end
+
 def unaryTy : UnaryOp → Ty × Ty
 | .not => (.bool, .bool)
 | .neg => (.int, .int)

@@ -47,4 +47,19 @@ def Database.getContext (D : Database) : Context where
   domain := D.getDomainContext
   var := D.const.map fun (x, t, _) => (x, .const t)
 
+/-- A JSON description of the database for the `describe` request: each domain with
+its queryable fields (label and type) and its output fields, plus the constants. -/
+def Database.schema (D : Database) : Lean.Json :=
+  let domains := D.domain.map fun (n, dom) =>
+    Lean.Json.mkObj
+      [ ("name", Lean.Json.str n.name),
+        ("fields", Lean.Json.arr <| (dom.inputField.map fun (l, f) =>
+          Lean.Json.mkObj [("label", Lean.Json.str l.name), ("type", Lean.Json.str f.ty.render)]).toArray),
+        ("output", Lean.Json.arr <| (dom.outputField.map fun (l, _) => Lean.Json.str l.name).toArray) ]
+  let constants := D.const.map fun (x, t, _) =>
+    Lean.Json.mkObj [("name", Lean.Json.str x.name), ("type", Lean.Json.str t.render)]
+  Lean.Json.mkObj
+    [ ("domains", Lean.Json.arr domains.toArray),
+      ("constants", Lean.Json.arr constants.toArray) ]
+
 end MathQL

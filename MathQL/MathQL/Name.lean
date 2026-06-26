@@ -17,3 +17,6 @@ def Label.name : Label → String
 inductive DomainName where
   | domain : String → DomainName
 deriving Repr, BEq, ReflBEq, LawfulBEq
+
+def DomainName.name : DomainName → String
+  | .domain s => s
