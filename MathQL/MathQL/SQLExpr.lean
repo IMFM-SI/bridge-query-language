@@ -11,6 +11,7 @@ inductive Expr where
   | null      : Expr
   | unop      : UnaryOp → Expr → Expr
   | binop     : BinaryOp → Expr → Expr → Expr
+  | compare   : ComparisonOp → Expr → Expr → Expr
   | isNull    : Expr → Expr
   | isNotNull : Expr → Expr
   | case      : (cond thn els : Expr) → Expr   -- CASE WHEN cond THEN thn ELSE els END
@@ -20,6 +21,9 @@ deriving Repr
 def renderBinop : BinaryOp → String
   | .and => "AND" | .or => "OR"
   | .add => "+" | .sub => "-" | .mul => "*"
+
+/-- The SQL text of a comparison operator. -/
+def renderCompareOp : ComparisonOp → String
   | .eq => "=" | .ne => "<>" | .lt => "<" | .le => "<=" | .gt => ">" | .ge => ">="
 
 /-- The SQL text of a unary operator. -/
@@ -36,6 +40,7 @@ def renderExpr : Expr → String
   | .null             => "NULL"
   | .unop op e        => s!"{renderUnop op} ({renderExpr e})"
   | .binop op e₁ e₂   => s!"({renderExpr e₁} {renderBinop op} {renderExpr e₂})"
+  | .compare op e₁ e₂ => s!"({renderExpr e₁} {renderCompareOp op} {renderExpr e₂})"
   | .isNull e         => s!"({renderExpr e} IS NULL)"
   | .isNotNull e      => s!"({renderExpr e} IS NOT NULL)"
   | .case c t e       => s!"(CASE WHEN {renderExpr c} THEN {renderExpr t} ELSE {renderExpr e} END)"

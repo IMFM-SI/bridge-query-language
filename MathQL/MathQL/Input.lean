@@ -20,6 +20,7 @@ inductive Expr where
   | tuple : List Expr → Expr
   | unop : UnaryOp → Expr → Expr
   | binop : BinaryOp → Expr → Expr → Expr
+  | compare : ComparisonOp → Expr → Expr → Expr
   | defined : Expr → Expr
   | undefined : Expr → Expr
 deriving Repr

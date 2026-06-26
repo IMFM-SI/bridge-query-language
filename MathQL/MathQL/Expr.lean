@@ -1,5 +1,6 @@
 import MathQL.Name
 import MathQL.Operators
+import MathQL.Ty
 
 namespace MathQL
 
@@ -12,6 +13,7 @@ inductive Expr where
   | field : Ident → Label → Expr
   | unop : UnaryOp → Expr → Expr
   | binop : BinaryOp → Expr → Expr → Expr
+  | compare : ComparisonOp → Ty → Expr → Expr → Expr
   | tuple : List Expr → Expr
   | proj : Expr → Nat → Expr
   | nil : Expr

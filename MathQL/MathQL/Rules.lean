@@ -35,6 +35,11 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
         ExprOfTy Γ e₂ t₂ →
         ExprOfTy Γ (.binop op e₁ e₂) t₃
 
+  | compare : ∀ {Γ op e₁ e₂ t},
+        ExprOfTy Γ e₁ t →
+        ExprOfTy Γ e₂ t →
+        ExprOfTy Γ (.compare op t e₁ e₂) .bool
+
   | tuple : ∀ {Γ es ts},
         TupleOfTy Γ es ts →
         ExprOfTy Γ (.tuple es) (.prod ts)

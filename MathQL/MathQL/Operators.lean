@@ -15,6 +15,10 @@ inductive BinaryOp where
   | add
   | sub
   | mul
+deriving Repr, Inhabited, BEq
+
+/-- Comparisons. -/
+inductive ComparisonOp where
   | eq
   | ne
   | lt

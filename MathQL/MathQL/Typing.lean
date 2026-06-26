@@ -73,19 +73,24 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
   | .unop op e =>
     match h : unaryTy op with
     | (t₁, t₂) => do
-      let ⟨e', he⟩ ← check Γ e t₁
-      return ⟨t₂, .unop op e', .unop h he⟩
+      let ⟨e, he⟩ ← check Γ e t₁
+      return ⟨t₂, .unop op e, .unop h he⟩
 
   | .binop op e₁ e₂ =>
     match h : binaryTy op with
     | (t₁, t₂, t₃) => do
-      let ⟨e₁', h₁⟩ ← check Γ e₁ t₁
-      let ⟨e₂', h₂⟩ ← check Γ e₂ t₂
-      return ⟨t₃, .binop op e₁' e₂', .binop h h₁ h₂⟩
+      let ⟨e₁, h₁⟩ ← check Γ e₁ t₁
+      let ⟨e₂, h₂⟩ ← check Γ e₂ t₂
+      return ⟨t₃, .binop op e₁ e₂, .binop h h₁ h₂⟩
+
+  | .compare op e₁ e₂ => do
+    let ⟨t, e₁, h₁⟩ ← infer Γ e₁
+    let ⟨e₂, h₂⟩ ← check Γ e₂ t
+    return ⟨.bool, .compare op t e₁ e₂, .compare h₁ h₂⟩
 
   | .defined e => do
-    let ⟨_, e', he⟩ ← infer Γ e
-    return ⟨.bool, .defined e', .defined he⟩
+    let ⟨_, e, he⟩ ← infer Γ e
+    return ⟨.bool, .defined e, .defined he⟩
 
   | .undefined e => do
     let ⟨_, e', he⟩ ← infer Γ e

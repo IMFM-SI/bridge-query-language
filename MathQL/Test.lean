@@ -28,6 +28,6 @@ def elaborates (s : String) : Bool :=
 -- SQL expression rendering (shown for review, not asserted). Query rendering now
 -- needs a `Database`, so it is exercised by `Main` against `graphs-small.db`.
 #eval IO.println (toString (SQL.Expr.binop .and
-  (.binop .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))
+  (.compare .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))
 
 def main : IO Unit := pure ()

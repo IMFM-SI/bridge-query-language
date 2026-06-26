@@ -66,7 +66,7 @@ private def stringLit : Parser String := do
   ws
   return s
 
-private def compareOp : Parser BinaryOp :=
+private def compareOp : Parser ComparisonOp :=
   (tok "≤" *> pure .le) <|> (tok "<=" *> pure .le) <|>
   (tok "≥" *> pure .ge) <|> (tok ">=" *> pure .ge) <|>
   (tok "≠" *> pure .ne) <|> (tok "!=" *> pure .ne) <|>
@@ -96,7 +96,7 @@ private partial def andExpr : Parser Input.Expr :=
 
 private partial def cmpExpr : Parser Input.Expr := do
   let l ← addExpr
-  (do let op ← compareOp; return .binop op l (← addExpr)) <|> pure l
+  (do let op ← compareOp; return .compare op l (← addExpr)) <|> pure l
 
 private partial def addExpr : Parser Input.Expr :=
   chainl1 mulExpr
