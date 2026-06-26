@@ -1,119 +1,104 @@
 # Handoff
 
-Branch: `mathql-lean`. The working tree is mid-redesign of MathQL's type
-system and database model. It likely does not build (see *Current state*).
-This session was design only; the uncommitted edits predate the final
-decisions recorded below.
+Branch `mathql-lean`. The library builds green (`lake build`). MathQL is a
+**standalone** Lean 4 package at `MathQL/` — a query language over SQLite
+databases of mathematical objects, presenting a *mathematical* interface
+(domains of objects with fields), never raw tables/SQL. No dependency on the
+`lean/` folder or anything Danel did.
 
-## Converged design
+## Pipeline
 
-### Type system
+```
+parse     Parsing.lean   String → Input.Query                       Std.Internal.Parsec
+typecheck Typing.lean    Context → Input.Query → Query               bidirectional check/infer
+compile   Compile.lean   Database → Query → SQL.Query
+render    SQL.lean       SQL.Query → String                         ToString, our own quoting
+execute   Execute.lean   SQLite → Database → Query → IO (Except String Lean.Json)
+```
 
-- `Ty` is ground-only and closed: `int | bool | string | list | prod`. No
-  `name`, `record`, `enum`, or `option`. `Ty.interpret` is total and
-  model-free — there is no `NameModel`/`M`.
-- Named types are *domains*. A domain name appears only as the collection a
-  variable ranges over (`x ∈ C`). A record is not a value type: a table is not
-  storable in a column, and a primary key is a ground value, not a table.
+## Type system (settled)
 
-### Variables and terms
+- `Ty` (`Ty.lean`): `int | bool | string | list t | prod ts`; hand-written
+  `beq`/`LawfulBEq`.
+- Intrinsic typing: `Expr` (`Expr.lean`, core AST), `ExprOfTy` (`Rules.lean`,
+  declarative typing relation), bidirectional `check`/`infer` (`Typing.lean`)
+  returning proof-carrying `{ e' // ExprOfTy Γ e' t }`.
+- `defined`/`undefined` compile to `IS NOT NULL`/`IS NULL`; there is no `null`
+  literal. SQL is three-valued (Kleene); `WHERE` is rendered **bare** (the sound
+  reading — keep only rows where the condition is true).
 
-- Every query variable refers to a domain. The context maps a variable to a
-  domain name, not to a `Ty`.
-- There is no bare-variable term. The atoms are projections off a domain
-  variable, `x.label`. The variable doubles as the SQL table alias.
-- Binding several domain variables (`x ∈ C, y ∈ D`) is a join across tables.
+## Query / Context / Database
 
-### Two kinds of domain accessor
+- `Query` (`Query.lean`): `vars : List (Ident × DomainName)`, `condition : Expr`,
+  `output : List (Ident × Label)`. The typing proof is dropped after checking;
+  the compiler resolves columns through the `Database`.
+- `Context` (`Context.lean`): typing side. `DomainTy { inputField : List (Label × Ty),
+  outputField : List Label }`; `Entry := const Ty | domain DomainTy`.
+  `Database.getContext` builds the `Context` used to type-check a query.
+- `Database` (`Database.lean`): realization.
+  - `Schema` (**Type 0**): `table`, `inputField : List (Label × InputField)`,
+    `select : List String` (columns to project, in order).
+  - `Domain extends Schema` (**Type 1**): adds `Obj : Type`,
+    `decode : SQLite.RowReader Obj`, `outputField : List (Label × (Obj → Lean.Json))`.
+  - `Database`: `const : List (Ident × Ty × SQL.Expr)`, `domain : List (DomainName × Domain)`.
+  - *Why the split*: `Obj : Type` makes `Domain : Type 1`. The compiler needs
+    only `Schema` (`Type 0`), so its `do`/`mapM` stays in `Type 0` (mixing a
+    `Type 1` value into `Except`/`Option` bind is a universe error). Pull the
+    schema with `match` on `Domain.toSchema`, never `Option.map`.
 
-- *Invariants*: backed by one SQL column, ground `Ty`. Usable in conditions
-  and output.
-- *Representations*: Lean functions of the fetched row, output only, not
-  described by `Ty` (e.g. `graph6 : String`, `edgeList`). Many just return an
-  invariant's value.
+## Column decoding
 
-### Two-world execution
+- `Column` (`Column.lean`): `RowReader` helpers reading one column at its true
+  type — `int`/`nat`/`bool`/`string`/`natOption`/`natList`. Integer columns go
+  through `Int64` then convert: leansqlite's `ResultColumn Nat` reads a **BLOB**,
+  so it must not be used for `INTEGER` columns.
+- A domain's `decode` sequences these helpers; **struct field order ≡ `select`
+  order ≡ decode order** is the positional contract SQLite does not check.
 
-- The condition `φ` is a `Ty`-typed boolean over invariants. It compiles to a
-  SQL `WHERE` clause. No re-filter, no `DB.correct`.
-- The output is a tuple of representations. Fetch the columns those
-  representations need, then build the tuple in Lean. `Ty` lives only on the
-  query side; the output lives in Lean.
+## graphs-small database
 
-### Constants (replacing enums)
+- `GraphsSmallDB.lean`: the `Database` for `data/graphs-small.db` (table `graph`,
+  one domain `Graph`). `Graph` has semantic fields — `Nat`, `Bool`, `Option Nat`
+  for the NULLable `diameter`/`radius`/`girth`, `List Nat` for the parsed
+  `degree_sequence`. Schema taken from `data/graphs-small-description.md` and
+  `python/generate_graphs.py`. Imports the umbrella, so it is **not** in the
+  umbrella itself; check it with `lake env lean MathQL/GraphsSmallDB.lean`.
 
-- The schema declares named constants, each `Ident ↦ (ground Ty, SQL
-  translation)`, e.g. `polytopal : string ↦ 'polytopal'`. A constant is a
-  0-ary op with a fixed ground type and a fixed SQL literal. `Expr.enum` /
-  `Input.enumCtor` becomes a constant reference resolved against this table.
-- `NULL` is a built-in polymorphic constant: it checks against any ground
-  type. `== NULL` / `!= NULL` must compile to `IS NULL` / `IS NOT NULL`, not
-  `= NULL`. `NULL == NULL` has nothing to infer — reject it or fix a meaning.
+## What's done / next
 
-### Operations
+Done and compiling: parse, typecheck, compile, render, execute, the `Column`
+helpers, and a real `graphs-small` `Database`.
 
-Fixed standard meaning (no `OpModel`).
+Next — the remaining half of the back end: a **runnable** that opens
+`data/graphs-small.db`, sends a sample query string through the whole pipeline
+(`Parsing.parse` → `checkQuery (database.getContext)` → `Execute.run db database`),
+and prints the `Json`. This is what actually verifies the positional decode
+order against real rows. After that: more domains, and wiring the MCP server
+(the Python prototype is `python/mcp_server.py`).
 
-### Database (single database)
+## Build / test
 
-`Database` holds `domains` and a constants table. A `Domain` has its name,
-table/alias, invariants (label, ground `Ty`, column), representations (Lean
-functions), and a decode for the columns a query needs. No `Enum` structure,
-no `M`/`NameModel`, no per-object `Obj` interpretation for conditions.
+```
+cd MathQL
+lake build                                # the library (umbrella MathQL.lean)
+lake env lean MathQL/GraphsSmallDB.lean   # the graphs DB (not in the umbrella)
+lake env lean Test.lean                   # front-end #guards + SQL-render #evals
+```
 
-## Current state of the code
+`leansqlite` is a dependency at `.lake/packages/leansqlite` (FFI SQLite;
+**typed, positional** row reading via `ResultColumn`/`Row`/`RowReader` — no
+dynamic cell type). The databases live in `data/` (sibling of `MathQL/`):
+`graphs-small.db`, `sym-ob-small.db`, with `*-description.md` for each.
 
-The uncommitted edits lag the design above:
+## Conventions
 
-- `Ty.lean`: `name` renamed to `enum` (still a `Ty` constructor); `option`,
-  `list`, `prod` still present. Per the design, `enum` and `option` should
-  both go, leaving `int | bool | string | list | prod`.
-- `Context.lean`: `var : List (Ident × Ident)` (variable ↦ domain) is right,
-  but `lookupVar` still returns `Option Ty` over `Γ.var.lookup`, which now
-  yields `Option Ident` — a type mismatch, the likely build break.
-- `Database.lean` (new): `Field`, `Domain`, `Enum`, `Database`. Close to the
-  design but still has `Enum` (should become a constants table) and has no
-  representations or decode yet.
-- The rest (`Expr`, `Rules`, `Input`, `Parsing`, `Typing`, `Test`) is
-  unchanged and still assumes the old model: variables have a `Ty`, results
-  are `Ty`-typed `Expr`, enums are named types.
-
-I did not run a build.
-
-## Next steps
-
-1. Settle `Ty` to `int | bool | string | list | prod` (drop `enum`,
-   `option`); simplify `Ty.beq` / `LawfulBEq`. `Ty.interpret` becomes
-   total and model-free.
-2. Fix `Context`: variable ↦ domain; add lookups for a domain's invariants
-   and representations, and for schema constants. `lookupVar` returns the
-   domain name.
-3. `Database.lean`: drop `Enum`, add a constants table (`Ident ↦ Ty × SQL`);
-   add representations (Lean functions) and a row decode to `Domain`.
-4. Rework `Expr` / `Rules`: the condition `Expr` keeps literals/ops/
-   projection/tuple; replace `var` with a projection node carrying
-   `(variable, label)`; `ExprOfTy` is for conditions only. The result becomes
-   a tuple of representation references, not a `Ty`-typed `Expr`.
-5. `Input` / `Parsing` / `Typing`: surface = domain bindings + condition +
-   output tuple of representations; `checkQuery` checks the condition against
-   invariants/constants and resolves output representations by name; enum →
-   constant.
-6. Compile condition → SQL `WHERE`; fetch + decode; build the output tuple in
-   Lean. Reuse Danel's `lean/QueryLanguage/{Core,Graph/SymObSmallDB}.lean`
-   for `Tm.toSQL`, `collect`/fetch, and leansqlite usage.
-
-## Constraints and preferences
-
-- `autoImplicit := false` project-wide.
-- No `mut` without explicit permission. `check`/`infer` work without
-  `termination_by` — do not add it.
-- No `deriving` clauses that were not requested.
-- Naming: `es` for expression lists, `e₁`/`e₂` for two expressions. No
-  wildcard `_` in the typing match — list all cases.
-- Never use the word "surface".
-- `leansqlite` from git, tracking `main`. Do not compile Mathlib. Ask before
-  installing anything.
-
-The stale design notes live at
-`~/.claude/plans/no-don-t-run-it-stateful-dahl.md`; this file supersedes
-their design section.
+- `autoImplicit := false`. No `mut` without permission. `check`/`infer` and
+  `toSQL` work without `termination_by` — do not add it. No unrequested
+  `deriving`.
+- Spell identifiers out; no abbreviations (`Column`, not `Col`). No `·`
+  placeholder currying — write `fun col => …`, not `(.col x ·)`. In `Except`/IO
+  code prefer `return`/`throw` over `.ok`/`.error`. Use `open` sparingly;
+  default to qualified names.
+- Output is `Lean.Json` (standard library). There is no `Value` type.
+- Never use the word "surface". `leansqlite` from git tracking `main`. Do not
+  compile Mathlib. Ask before installing anything.

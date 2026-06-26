@@ -8,5 +8,6 @@ import MathQL.Input
 import MathQL.Parsing
 import MathQL.Typing
 import MathQL.SQL
+import MathQL.Column
 import MathQL.Compile
 import MathQL.Execute
