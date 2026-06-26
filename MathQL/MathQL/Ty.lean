@@ -67,10 +67,6 @@ instance : LawfulBEq Ty where
   rfl {a} := Ty.beq_refl a
   eq_of_beq {a b} h := Ty.eq_of_beq a b h
 
-inductive TyDef where
-  | enum : List Ident → TyDef
-  | record : List (Label × Ty) → TyDef
-
 def unaryTy : UnaryOp → Ty × Ty
 | .not => (.bool, .bool)
 | .neg => (.int, .int)
