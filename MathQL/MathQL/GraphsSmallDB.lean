@@ -167,7 +167,7 @@ def database : Database where
     [ ("the trees on 5 vertices",
         json% { "domains": [["g", "Graph"]],
                 "output": ["g.graph6", "g.degree_sequence"],
-                "condition": "g.num_vertices == 5 ∧ g.is_tree" }),
+                "condition": "g.num_vertices == 5 && g.is_tree" }),
       ("the three graphs on 5 vertices with the most edges",
         json% { "domains": [["g", "Graph"]],
                 "output": ["g.graph6", "g.num_edges"],
@@ -177,7 +177,7 @@ def database : Database where
       ("connected non-planar graphs, fewest vertices first",
         json% { "domains": [["g", "Graph"]],
                 "output": ["g.graph6", "g.num_vertices"],
-                "condition": "g.is_connected ∧ ¬ g.is_planar",
+                "condition": "g.is_connected && !g.is_planar",
                 "order": [["g.num_vertices", "asc"]],
                 "limit": 5 }) ]
 
