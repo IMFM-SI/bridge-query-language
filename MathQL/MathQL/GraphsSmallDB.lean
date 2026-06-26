@@ -95,21 +95,30 @@ def Graph.decode : SQLite.RowReader Graph := do
            isTree, isForest, isBipartite, isPlanar, isEulerian, numTriangles,
            cliqueNumber, independenceNumber, chromaticNumber, automorphismCount }
 
-/-- The queryable columns, in `decode`/`select` order: `(column name, query type)`. -/
-def graphColumns : List (String × Ty) :=
-  [ ("graph6", .string),
-    ("num_vertices", .int), ("num_edges", .int),
-    ("degree_sequence", .string),
-    ("min_degree", .int), ("max_degree", .int),
-    ("is_regular", .bool),
-    ("num_components", .int),
-    ("is_connected", .bool),
-    ("diameter", .int), ("radius", .int), ("girth", .int),
-    ("is_tree", .bool), ("is_forest", .bool), ("is_bipartite", .bool),
-    ("is_planar", .bool), ("is_eulerian", .bool),
-    ("num_triangles", .int),
-    ("clique_number", .int), ("independence_number", .int),
-    ("chromatic_number", .int), ("automorphism_count", .int) ]
+/-- The queryable columns, in `decode`/`select` order: `(column name, query type, doc)`. -/
+def graphColumns : List (String × Ty × String) :=
+  [ ("graph6", .string, "the graph in graph6 encoding (nauty's canonical form)"),
+    ("num_vertices", .int, "order: the number of vertices"),
+    ("num_edges", .int, "size: the number of edges"),
+    ("degree_sequence", .string, "JSON list of vertex degrees, sorted descending"),
+    ("min_degree", .int, "the smallest vertex degree"),
+    ("max_degree", .int, "the largest vertex degree"),
+    ("is_regular", .bool, "whether all vertices have the same degree"),
+    ("num_components", .int, "the number of connected components"),
+    ("is_connected", .bool, "whether the graph is connected"),
+    ("diameter", .int, "the greatest distance between two vertices; NULL when disconnected"),
+    ("radius", .int, "the minimum vertex eccentricity; NULL when disconnected"),
+    ("girth", .int, "the length of a shortest cycle; NULL when acyclic"),
+    ("is_tree", .bool, "whether the graph is a tree"),
+    ("is_forest", .bool, "whether the graph is a forest"),
+    ("is_bipartite", .bool, "whether the graph is bipartite"),
+    ("is_planar", .bool, "whether the graph is planar"),
+    ("is_eulerian", .bool, "whether the graph has an Eulerian circuit"),
+    ("num_triangles", .int, "the number of triangles (3-cliques)"),
+    ("clique_number", .int, "the size of a largest clique"),
+    ("independence_number", .int, "the size of a largest independent set"),
+    ("chromatic_number", .int, "the chromatic number"),
+    ("automorphism_count", .int, "the order of the automorphism group") ]
 
 /-- The output fields: each column's value as JSON, off a decoded `Graph`. -/
 def graphOutput : List (Label × (Graph → Lean.Json)) :=
@@ -139,17 +148,37 @@ def graphOutput : List (Label × (Graph → Lean.Json)) :=
 /-- The `Graph` domain over the `graph` table. -/
 def graphDomain : Domain where
   table := "graph"
-  inputField := graphColumns.map fun (name, ty) =>
-    (.label name, { label := .label name, column := name, ty })
-  select := graphColumns.map fun (name, _) => name
+  inputField := graphColumns.map fun (name, ty, doc) =>
+    (.label name, { label := .label name, column := name, ty, doc })
+  select := graphColumns.map fun (name, _, _) => name
   Obj := Graph
   toJson := fun g => Lean.Json.mkObj (graphOutput.map fun (l, f) => (l.name, f g))
   decode := Graph.decode
   outputField := graphOutput
+  doc := "A finite simple graph (no loops or multiple edges), up to isomorphism."
 
 /-- The `graphs-small.db` database: one domain, `Graph`. -/
 def database : Database where
+  overview := "All non-isomorphic simple graphs on up to 8 vertices (13,598 of them), \
+    each annotated with standard graph invariants."
   const := []
   domain := [(.domain "Graph", graphDomain)]
+  examples :=
+    [ ("the trees on 5 vertices",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g.graph6", "g.degree_sequence"],
+                "condition": "g.num_vertices == 5 ∧ g.is_tree" }),
+      ("the three graphs on 5 vertices with the most edges",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g.graph6", "g.num_edges"],
+                "condition": "g.num_vertices == 5",
+                "order": [["g.num_edges", "desc"]],
+                "limit": 3 }),
+      ("connected non-planar graphs, fewest vertices first",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g.graph6", "g.num_vertices"],
+                "condition": "g.is_connected ∧ ¬ g.is_planar",
+                "order": [["g.num_vertices", "asc"]],
+                "limit": 5 }) ]
 
 end MathQL.GraphsSmallDB

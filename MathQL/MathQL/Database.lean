@@ -13,6 +13,8 @@ structure InputField where
   column : String
   /-- The type of the field in the query langauge -/
   ty : Ty
+  /-- A human description of the field's meaning -/
+  doc : String
 
 structure Schema where
   /-- The table/view in the database this domain refers to -/
@@ -31,12 +33,18 @@ structure Domain extends Schema where
   decode : SQLite.RowReader Obj
   /-- Output fields -/
   outputField : List (Label × (Obj → Lean.Json))
+  /-- A human description of the domain -/
+  doc : String
 
 structure Database where
+  /-- A human overview of what the database contains -/
+  overview : String
   /-- The constants known to this database -/
   const : List (Ident × Ty × SQL.Expr)
   /-- The domains/tables known to this database -/
   domain : List (DomainName × Domain)
+  /-- Example queries, each with a short note -/
+  examples : List (String × Lean.Json)
 
 def Database.getDomainContext (D : Database) : DomainContext :=
   D.domain.map fun (n, d) =>
@@ -47,19 +55,28 @@ def Database.getContext (D : Database) : Context where
   domain := D.getDomainContext
   var := D.const.map fun (x, t, _) => (x, .const t)
 
-/-- A JSON description of the database for the `describe` request: each domain with
-its queryable fields (label and type) and its output fields, plus the constants. -/
+/-- A JSON description of the database for the `describe` request: an overview, each
+domain with its doc and its queryable fields (label, type, doc) and output fields,
+the constants, and example queries. -/
 def Database.schema (D : Database) : Lean.Json :=
   let domains := D.domain.map fun (n, dom) =>
     Lean.Json.mkObj
       [ ("name", Lean.Json.str n.name),
+        ("doc", Lean.Json.str dom.doc),
         ("fields", Lean.Json.arr <| (dom.inputField.map fun (l, f) =>
-          Lean.Json.mkObj [("label", Lean.Json.str l.name), ("type", Lean.Json.str f.ty.render)]).toArray),
+          Lean.Json.mkObj
+            [ ("label", Lean.Json.str l.name),
+              ("type", Lean.Json.str f.ty.render),
+              ("doc", Lean.Json.str f.doc) ]).toArray),
         ("output", Lean.Json.arr <| (dom.outputField.map fun (l, _) => Lean.Json.str l.name).toArray) ]
   let constants := D.const.map fun (x, t, _) =>
     Lean.Json.mkObj [("name", Lean.Json.str x.name), ("type", Lean.Json.str t.render)]
+  let examples := D.examples.map fun (note, q) =>
+    Lean.Json.mkObj [("note", Lean.Json.str note), ("query", q)]
   Lean.Json.mkObj
-    [ ("domains", Lean.Json.arr domains.toArray),
-      ("constants", Lean.Json.arr constants.toArray) ]
+    [ ("overview", Lean.Json.str D.overview),
+      ("domains", Lean.Json.arr domains.toArray),
+      ("constants", Lean.Json.arr constants.toArray),
+      ("examples", Lean.Json.arr examples.toArray) ]
 
 end MathQL
