@@ -143,6 +143,7 @@ def graphDomain : Domain where
     (.label name, { label := .label name, column := name, ty })
   select := graphColumns.map fun (name, _) => name
   Obj := Graph
+  toJson := fun g => Lean.Json.mkObj (graphOutput.map fun (l, f) => (l.name, f g))
   decode := Graph.decode
   outputField := graphOutput
 

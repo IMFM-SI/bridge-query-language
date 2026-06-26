@@ -7,6 +7,6 @@ namespace MathQL
 structure Query where
   vars : List (Ident × DomainName)
   condition : Expr
-  output : List (Ident × Label)
+  output : List (Ident × Option Label)
 
 end MathQL

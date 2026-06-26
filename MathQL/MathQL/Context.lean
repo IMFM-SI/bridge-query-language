@@ -32,7 +32,7 @@ def Context.lookupConst (Γ : Context) (x : Ident) : Option Ty := do
   | .const t => return t
   | .domain _ => .none
 
-private def Context.lookupVar (Γ : Context) (x : Ident) : Option DomainTy := do
+def Context.lookupVar (Γ : Context) (x : Ident) : Option DomainTy := do
   let ent ← Γ.var.lookup x
   match ent with
   | .const _ => .none

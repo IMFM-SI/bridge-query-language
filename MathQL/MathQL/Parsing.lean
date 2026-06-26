@@ -153,12 +153,11 @@ private partial def parenExpr : Parser Input.Expr := do
 
 end
 
-/-- One output item, `x.label`. -/
-private def outputItem : Parser (String × String) := do
+/-- One output item: a domain variable `x` (the whole object) or a field
+    projection `x.label`. -/
+private def outputItem : Parser (String × Option String) := do
   let x ← ident
-  tok "."
-  let l ← ident
-  return (x, l)
+  (do let l ← attempt (do tok "."; ident); return (x, some l)) <|> pure (x, none)
 
 /-- One domain binding, `x ∈ D`. -/
 private def binding : Parser (String × String) := do

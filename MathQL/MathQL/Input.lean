@@ -27,7 +27,7 @@ deriving Repr
 /-- A top-level query `{ output | var ∈ domain, condition }`. A query is not an
     expression: it cannot nest or appear as a subterm. -/
 structure Query where
-  output : List (String × String)
+  output : List (String × Option String)
   vars : List (String × String)
   condition : Expr
 deriving Repr

@@ -67,23 +67,22 @@ def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
   | .cons _ _ => throw "lists have no SQL form"
 
 /-- The resolution context for a query whose variables are bound to the given schemas. -/
-def SqlCtx.ofBindings (D : Database) (binds : List (Ident × Schema)) : SqlCtx where
+def SqlCtx.ofVars (D : Database) (vars : List (Ident × Domain)) : SqlCtx where
   field x l :=
-    match binds.lookup x with
+    match vars.lookup x with
     | none => none
-    | some s => (s.inputField.lookup l).map fun f => (x.name, f.column)
+    | some dom => (dom.inputField.lookup l).map fun f => (x.name, f.column)
   const c := (D.const.lookup c).map Prod.snd
 
 /-- Compile a type-checked query to a SQL query. -/
 def compile (D : Database) (q : Query) : Result SQL.Query := do
-  let binds : List (Ident × Schema) ← q.vars.mapM fun (x, n) =>
+  let vars ← q.vars.mapM fun (x, n) =>
     match D.domain.lookup n with
-    | some dom => pure (x, dom.toSchema)
+    | some dom => pure (x, dom)
     | none => throw s!"unknown domain {repr n}"
-  let cond ← toSQL (SqlCtx.ofBindings D binds) q.condition
-  return {
-    select := binds.flatMap fun (x, s) => s.select.map (.col x.name)
-    tables := binds.map fun (x, s) => (s.table, x.name)
-    cond }
+  -- The following is hand-roled without using do-notation because of universe levels
+  match toSQL (SqlCtx.ofVars D vars) q.condition with
+  | .error e => throw e
+  | .ok cond => return { vars, cond }
 
 end MathQL

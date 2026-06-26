@@ -25,20 +25,9 @@ def elaborates (s : String) : Bool :=
 #guard !elaborates "{ g.bogus | g ∈ Graph, g.planar }"  -- unknown output field
 #guard !elaborates "{ g.n | g ∈ Graph, g.planar + 1 }"  -- Bool used in arithmetic
 
--- SQL rendering. Output is shown for review, not asserted.
-def sqlSample1 : SQL.Query :=
-  { select := [.col "g" "num_vertices", .col "g" "is_planar"],
-    tables := [("graphs", "g")],
-    cond   := .binop .and (.binop .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar") }
-
-def sqlSample2 : SQL.Query :=
-  { select := [.col "g" "graph6", .col "h" "graph6"],
-    tables := [("graphs", "g"), ("graphs", "h")],
-    cond   := .binop .and
-                (.binop .eq (.col "g" "num_vertices") (.col "h" "num_vertices"))
-                (.binop .ne (.col "g" "name") (.str "K_4")) }
-
-#eval IO.println (toString sqlSample1)
-#eval IO.println (toString sqlSample2)
+-- SQL expression rendering (shown for review, not asserted). Query rendering now
+-- needs a `Database`, so it is exercised by `Main` against `graphs-small.db`.
+#eval IO.println (toString (SQL.Expr.binop .and
+  (.binop .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))
 
 def main : IO Unit := pure ()

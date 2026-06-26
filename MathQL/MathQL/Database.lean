@@ -1,7 +1,7 @@
 import MathQL.Name
 import MathQL.Ty
 import MathQL.Context
-import MathQL.SQL
+import MathQL.SQLExpr
 import SQLite
 
 namespace MathQL
@@ -25,6 +25,8 @@ structure Schema where
 structure Domain extends Schema where
   /-- The Lean type of a decoded object -/
   Obj : Type
+  /-- Convert the object as a whole to Json-/
+  toJson : Obj → Lean.Json
   /-- Reads the projected cells into an object -/
   decode : SQLite.RowReader Obj
   /-- Output fields -/

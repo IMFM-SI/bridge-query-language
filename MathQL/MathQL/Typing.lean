@@ -152,9 +152,16 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkOutput (Γ : Context) : List (String × String) → Result (List (Ident × Label))
+def checkOutput (Γ : Context) : List (String × Option String) → Result (List (Ident × Option Label))
 | [] => return []
-| (x', l') :: xls => do
+| (x', .none) :: xls => do
+  let x := Ident.ident x'
+  match Γ.lookupVar x with
+  | .some _ =>
+    let xls ← checkOutput Γ xls
+    return (x, .none) :: xls
+  | .none => throw s!"unknown variables {x'}"
+| (x', .some l') :: xls => do
   let x := .ident x'
   let l := .label l'
   match Γ.isOutputField x l with
