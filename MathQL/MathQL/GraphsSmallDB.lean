@@ -106,9 +106,9 @@ def graphColumns : List (String × Ty × String) :=
     ("is_regular", .bool, "whether all vertices have the same degree"),
     ("num_components", .int, "the number of connected components"),
     ("is_connected", .bool, "whether the graph is connected"),
-    ("diameter", .int, "the greatest distance between two vertices; NULL when disconnected"),
-    ("radius", .int, "the minimum vertex eccentricity; NULL when disconnected"),
-    ("girth", .int, "the length of a shortest cycle; NULL when acyclic"),
+    ("diameter", .int, "the greatest distance between two vertices; undefined when disconnected"),
+    ("radius", .int, "the minimum vertex eccentricity; undefined when disconnected"),
+    ("girth", .int, "the length of a shortest cycle; undefined when acyclic"),
     ("is_tree", .bool, "whether the graph is a tree"),
     ("is_forest", .bool, "whether the graph is a forest"),
     ("is_bipartite", .bool, "whether the graph is bipartite"),
@@ -159,8 +159,8 @@ def graphDomain : Domain where
 
 /-- The `graphs-small.db` database: one domain, `Graph`. -/
 def database : Database where
-  overview := "All non-isomorphic simple graphs on up to 8 vertices (13,598 of them), \
-    each annotated with standard graph invariants."
+  overview := "All non-isomorphic simple graphs on up to 8 vertices, each \
+    annotated with a selection of graph invariants."
   const := []
   domain := [(.domain "Graph", graphDomain)]
   examples :=
@@ -174,11 +174,33 @@ def database : Database where
                 "condition": "g.num_vertices == 5",
                 "order": [["g.num_edges", "desc"]],
                 "limit": 3 }),
-      ("connected non-planar graphs, fewest vertices first",
+      ("connected non-planar graphs on at least 6 vertices, fewest vertices first",
         json% { "domains": [["g", "Graph"]],
                 "output": ["g.graph6", "g.num_vertices"],
-                "condition": "g.is_connected && !g.is_planar",
+                "condition": "g.is_connected && !g.is_planar && g.num_vertices >= 6",
                 "order": [["g.num_vertices", "asc"]],
-                "limit": 5 }) ]
+                "limit": 5 }),
+      ("pairs of graphs with equally many vertices where the first has fewer edges",
+        json% { "domains": [["g", "Graph"], ["h", "Graph"]],
+                "output": ["g.graph6", "h.graph6"],
+                "condition": "g.num_vertices == h.num_vertices && g.num_edges < h.num_edges",
+                "limit": 5 }),
+      ("forests (girth undefined) on at most 4 vertices, returned whole",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g"],
+                "condition": "undefined g.girth && g.num_vertices <= 4",
+                "limit": 5 }),
+      ("bipartite or planar graphs whose diameter is defined and exceeds 2, widest first",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g.graph6", "g.diameter"],
+                "condition": "(g.is_bipartite || g.is_planar) && defined g.diameter && g.diameter > 2",
+                "order": [["g.diameter", "desc"]],
+                "limit": 5 }),
+      ("the most irregular graphs, by the spread between max and min degree",
+        json% { "domains": [["g", "Graph"]],
+                "output": ["g.graph6", "g.max_degree", "g.min_degree"],
+                "condition": "g.max_degree != g.min_degree",
+                "order": [["g.max_degree - g.min_degree", "desc"]],
+                "limit": 3 }) ]
 
 end MathQL.GraphsSmallDB
