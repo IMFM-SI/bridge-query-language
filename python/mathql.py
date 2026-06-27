@@ -20,6 +20,7 @@ from mcp.server.fastmcp import FastMCP
 ROOT = Path(__file__).resolve().parent.parent
 MATHQL_DIR = ROOT / "MathQL"
 DB_PATH = ROOT / "data" / "graphs-small.db"
+GRAMMAR_PATH = ROOT / "docs" / "query-grammar.md"
 
 
 class Engine:
@@ -55,21 +56,18 @@ class Engine:
             return json.loads(response)
 
 
-GRAMMAR = """## Query format
-Call `query` with: domains (e.g. [["g", "Graph"]]); output (e.g.
-["g.graph6", "g.num_edges"], or ["g"] for the whole object); condition
-(optional); order (optional, [expression, "asc"|"desc"] pairs); limit (optional).
+SUMMARY = """## Writing queries
+`query` takes: domains (e.g. [["g", "Graph"]]); output (["g.field", ...], or ["g"]
+for the whole object); and optional condition, order ([expression, "asc"|"desc"]
+pairs), and limit. Conditions and order expressions use fields (g.num_vertices),
+literals, arithmetic (+ - *), comparisons (== != < <= > >=), booleans (&& || !),
+and defined/undefined for absence; a comparison needs both sides the same scalar
+type (int/bool/string). ASCII operators are preferred; ∧ ∨ ¬ ≤ ≥ ≠ also work. Call
+the `grammar` tool (or read the mathql://grammar resource) for the full grammar."""
 
-## Expression grammar (use ASCII)
-  literals    42   "text"   true   false
-  field       g.num_vertices
-  arithmetic  +  -  *   (and unary -)
-  comparison  ==  !=  <  <=  >  >=
-  boolean     &&  ||  !
-  null tests  defined E    undefined E
-Comparison requires both sides to have the same type, and only int/bool/string
-compare. ASCII operators are recommended; the UTF-8 forms (and or not, <= >= !=)
-are also accepted, but prefer ASCII."""
+
+def read_grammar() -> str:
+    return GRAMMAR_PATH.read_text()
 
 
 def build_instructions(schema: dict) -> str:
@@ -79,8 +77,8 @@ def build_instructions(schema: dict) -> str:
         lines.append(f"- {domain['name']}: {domain.get('doc', '')}")
         for field in domain.get("fields", []):
             lines.append(f"    {field['label']} : {field['type']} — {field.get('doc', '')}")
-    lines += ["", GRAMMAR, "", "## Example queries"]
-    for example in schema.get("examples", []):
+    lines += ["", SUMMARY, "", "## Examples (call `describe` for the full list)"]
+    for example in schema.get("examples", [])[:3]:
         lines.append(f"- {example['note']}: {json.dumps(example['query'])}")
     return "\n".join(lines)
 
@@ -122,6 +120,19 @@ def query(
 def describe() -> dict:
     """Return the database schema: domains, fields, constants, and examples."""
     return engine.request({"describe": True})
+
+
+@mcp.tool()
+def grammar() -> str:
+    """The full query-language grammar: the JSON query shape, the expression grammar
+    with precedence, the operator table, and examples."""
+    return read_grammar()
+
+
+@mcp.resource("mathql://grammar")
+def grammar_resource() -> str:
+    """The full MathQL query-language grammar."""
+    return read_grammar()
 
 
 if __name__ == "__main__":
