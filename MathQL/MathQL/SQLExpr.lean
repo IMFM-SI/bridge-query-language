@@ -15,6 +15,8 @@ inductive Expr where
   | isNull    : Expr → Expr
   | isNotNull : Expr → Expr
   | case      : (cond thn els : Expr) → Expr   -- CASE WHEN cond THEN thn ELSE els END
+  | jsonArray   : List Expr → Expr             -- json_array(…)
+  | jsonExtract : Expr → Nat → Expr            -- json_extract(e, '$[i]')
 deriving Repr
 
 /-- The SQL text of a binary operator. -/
@@ -34,6 +36,8 @@ def renderDir : Direction → String
 def renderUnop : UnaryOp → String
   | .not => "NOT" | .neg => "-"
 
+mutual
+
 /-- Render an expression to SQLite text; string literals are quoted here
 (single quotes, `''` escaping an embedded quote). -/
 def renderExpr : Expr → String
@@ -48,3 +52,13 @@ def renderExpr : Expr → String
   | .isNull e         => s!"({renderExpr e} IS NULL)"
   | .isNotNull e      => s!"({renderExpr e} IS NOT NULL)"
   | .case c t e       => s!"(CASE WHEN {renderExpr c} THEN {renderExpr t} ELSE {renderExpr e} END)"
+  | .jsonArray es     => s!"json_array({renderArgs es})"
+  | .jsonExtract e i  => s!"json_extract({renderExpr e}, '$[{i}]')"
+
+/-- Render a comma-separated argument list. -/
+def renderArgs : List Expr → String
+  | [] => ""
+  | [e] => renderExpr e
+  | e :: es => renderExpr e ++ ", " ++ renderArgs es
+
+end

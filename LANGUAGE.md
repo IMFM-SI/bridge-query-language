@@ -32,10 +32,9 @@ type is a finite tree over scalars, lists, and products. Domains are named — t
 are what a variable ranges over — and a database may declare named *constants*, but
 neither is a type in this grammar.
 
-`Int`, `Bool`, `String` are the scalar types the realization stores and compares as
-first-class columns. `List τ` and products exist in the type system but have no SQL
-image (see *Realization*), so a query that reaches the database uses the scalar
-fragment.
+`Int`, `Bool`, and `String` are the scalar types, stored as ordinary columns. `List τ`
+and products are realized as JSON arrays (see *Realization*), so they too may appear in
+a query.
 
 ## Expressions
 
@@ -52,7 +51,7 @@ e ::= n | "s" | true | false                          -- literals
     | if e then e else e                               -- conditional
     | defined e | undefined e                          -- presence tests
     | (e₁, …, eₙ) | e.i                                 -- product and projection
-    | [] | e :: e | [e₁, …, eₙ]                        -- list
+    | [] | [e₁, …, eₙ]                                  -- list
 ```
 
 ASCII synonyms: `∧`=`&&`, `∨`=`||`, `¬`=`!`, `≤`=`<=`, `≥`=`>=`, `≠`=`!=`, `=`=`==`.
@@ -77,11 +76,13 @@ modes against the declarative rules in `Rules.lean`:
   `τ`.
 - **presence** — `defined e ⇒ Bool` and `undefined e ⇒ Bool` for any `e ⇒ τ`.
 - **product** — `(e₁, …, eₙ) ⇒ τ₁ × ⋯ × τₙ`; `e.i ⇒ τᵢ` when `e ⇒ τ₁ × ⋯ × τₙ`.
-- **list** — `[] ⇐ List τ`; `e :: es ⇒ List τ` when `e ⇒ τ` and `es ⇐ List τ`.
+- **list** — a list literal `[e₁, …, eₙ]` has type `List τ` when every `eᵢ` has type
+  `τ`; `[]` checks against any `List τ`.
 
-All six comparisons share one rule: both sides at a single type, result `Bool`. The
-type system allows comparing any equal types, but the SQLite realization supports
-comparison only at the scalar types and rejects products and lists at compile time.
+All six comparisons share one rule: both sides at a single type, result `Bool`. This
+holds at every type — scalars, lists, and products — because lists and products are
+realized as JSON arrays, and a comparison of them is SQLite's comparison over those
+arrays.
 
 ## Queries
 
@@ -128,8 +129,10 @@ A database connects the language to storage. It maps:
   decoded and rendered to JSON (a whole-object item renders all of the domain's
   output fields); its **order** → `ORDER BY`; its **limit** → `LIMIT`.
 
-Products and lists have no SQL image, so they cannot appear in a condition, an order
-key, or an output that reaches the database.
+Lists and products are realized as JSON arrays: a list or tuple literal compiles to
+`json_array(…)`, a tuple projection to `json_extract(…)`, and a comparison of lists or
+tuples is SQLite's comparison over the (canonical) JSON. Ordering keys must still be
+scalar.
 
 ## Implementation
 

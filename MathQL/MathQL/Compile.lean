@@ -16,6 +16,8 @@ structure SqlCtx where
   field : Ident → Label → Option (String × String)
   const : Ident → Option SQL.Expr
 
+mutual
+
 /-- Compile a typed condition expression to a SQL expression. -/
 def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
   match e with
@@ -44,13 +46,10 @@ def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
     let s₂ ← toSQL Γ e₂
     return .binop op s₁ s₂
 
-  | .compare op t e₁ e₂ =>
-    match t with
-    | .int | .bool | .string =>
-      let s₁ ← toSQL Γ e₁
-      let s₂ ← toSQL Γ e₂
-      return .compare op s₁ s₂
-    | .list _ | .prod _ => throw s!"cannot compare values of type {repr t} in SQL"
+  | .compare op _ e₁ e₂ =>
+    let s₁ ← toSQL Γ e₁
+    let s₂ ← toSQL Γ e₂
+    return .compare op s₁ s₂
 
   | .ite c a b =>
     let sc ← toSQL Γ c
@@ -66,13 +65,27 @@ def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
     let s ← toSQL Γ e
     return .isNull s
 
-  | .tuple _ => throw "tuples have no SQL form"
+  | .tuple es =>
+    let ss ← toSQLList Γ es
+    return .jsonArray ss
 
-  | .proj _ _ => throw "tuple projection has no SQL form"
+  | .proj e i =>
+    let s ← toSQL Γ e
+    return .jsonExtract s i
 
-  | .nil => throw "lists have no SQL form"
+  | .list es =>
+    let ss ← toSQLList Γ es
+    return .jsonArray ss
 
-  | .cons _ _ => throw "lists have no SQL form"
+/-- Compile a list of expressions for a `json_array` argument list. -/
+def toSQLList (Γ : SqlCtx) : List Expr → Result (List SQL.Expr)
+  | [] => return []
+  | e :: es => do
+    let s ← toSQL Γ e
+    let ss ← toSQLList Γ es
+    return s :: ss
+
+end
 
 /-- The resolution context for a query whose variables are bound to the given schemas. -/
 def SqlCtx.ofVars (D : Database) (vars : List (Ident × Domain)) : SqlCtx where

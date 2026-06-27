@@ -84,10 +84,6 @@ private partial def ifExpr : Parser Input.Expr := do
   keyword "else"; let e ← expr
   return .ite c t e
 
-private partial def consExpr : Parser Input.Expr := do
-  let e ← addExpr
-  (do tok "::"; return .cons e (← consExpr)) <|> pure e
-
 private partial def orExpr : Parser Input.Expr :=
   chainl1 andExpr ((tok "∨" <|> tok "||") *> pure (.binop .or))
 
@@ -95,8 +91,8 @@ private partial def andExpr : Parser Input.Expr :=
   chainl1 cmpExpr ((tok "∧" <|> tok "&&") *> pure (.binop .and))
 
 private partial def cmpExpr : Parser Input.Expr := do
-  let l ← consExpr
-  (do let op ← compareOp; return .compare op l (← consExpr)) <|> pure l
+  let l ← addExpr
+  (do let op ← compareOp; return .compare op l (← addExpr)) <|> pure l
 
 private partial def addExpr : Parser Input.Expr :=
   chainl1 mulExpr
@@ -131,7 +127,7 @@ private partial def atomExpr : Parser Input.Expr :=
   (keyword "true" *> pure (.bool true)) <|>
   (keyword "false" *> pure (.bool false)) <|>
   (do return .str (← stringLit)) <|>
-  (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .listLit items) <|>
+  (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .list items) <|>
   parenExpr <|>
   identExpr
 

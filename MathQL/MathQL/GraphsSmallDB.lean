@@ -17,7 +17,7 @@ column                 Ty       Obj field            Lean type
 graph6                 string   graph6               String
 num_vertices           int      numVertices          Nat
 num_edges              int      numEdges             Nat
-degree_sequence        string   degreeSequence       List Nat      (JSON text)
+degree_sequence        list int degreeSequence       List Nat      (JSON text)
 min_degree             int      minDegree            Nat
 max_degree             int      maxDegree            Nat
 is_regular             bool     isRegular            Bool
@@ -100,7 +100,7 @@ def graphColumns : List (String × Ty × String) :=
   [ ("graph6", .string, "the graph in graph6 encoding (nauty's canonical form)"),
     ("num_vertices", .int, "order: the number of vertices"),
     ("num_edges", .int, "size: the number of edges"),
-    ("degree_sequence", .string, "JSON list of vertex degrees, sorted descending"),
+    ("degree_sequence", .list .int, "JSON list of vertex degrees, sorted descending"),
     ("min_degree", .int, "the smallest vertex degree"),
     ("max_degree", .int, "the largest vertex degree"),
     ("is_regular", .bool, "whether all vertices have the same degree"),

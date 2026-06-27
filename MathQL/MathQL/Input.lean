@@ -13,9 +13,7 @@ inductive Expr where
   | const : String → Expr
   | field : String → String → Expr
   | proj : Expr → Nat → Expr
-  | nil : Expr
-  | cons : Expr → Expr → Expr
-  | listLit : List Expr → Expr
+  | list : List Expr → Expr
   | ite : Expr → Expr → Expr → Expr
   | tuple : List Expr → Expr
   | unop : UnaryOp → Expr → Expr

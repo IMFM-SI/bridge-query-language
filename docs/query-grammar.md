@@ -68,7 +68,6 @@ expr ::= "if" expr "then" expr "else" expr
        | expr "<=" expr
        | expr ">" expr
        | expr ">=" expr
-       | expr "::" expr
        | expr "+" expr
        | expr "-" expr
        | expr "*" expr
@@ -98,8 +97,6 @@ The meaning and types of the above expressions is as follows:
   result are `bool`.
 - `e1 == e2`, `e1 != e2`, `e1 < e2`, `e1 <= e2`, `e1 > e2`, `e1 >= e2` — comparisons;
   the two operands must have the same type, and the result is `bool`.
-- `e1 :: e2` — prepends `e1` to the list `e2`; with `e1` of type `τ` and `e2` of type
-  `list τ`, the result has type `list τ`.
 - `e1 + e2`, `e1 - e2`, `e1 * e2`, and `- e` — integer arithmetic; the operands and
   the result are `int`.
 - `! e` — boolean negation; the operand and the result are `bool`.
@@ -128,7 +125,6 @@ accepted equivalents:
 - `&&` (UTF-8 `∧`), conjunction, left-associative.
 - `==` `!=` `<` `<=` `>` `>=`, comparison, non-associative (UTF-8 `=`, `≠`,
   `≤`, `≥`).
-- `::`, list construction, right-associative.
 - `+` `-`, addition and subtraction, left-associative.
 - `*`, multiplication, left-associative.
 - `!` (UTF-8 `¬`), unary `-`, `defined`, and `undefined`, the prefix operators.

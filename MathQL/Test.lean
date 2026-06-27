@@ -34,15 +34,11 @@ def elaborates (j : Lean.Json) : Bool :=
 #guard !elaborates (jq ["g.bogus"] "g.planar")   -- unknown output field
 #guard !elaborates (jq ["g.n"] "g.planar + 1")   -- Bool used in arithmetic
 
--- `::` precedence: tighter than comparison, looser than + - *, right-associative.
-#guard (match Parsing.parseExpr "1 :: 2 == 3" with
-  | .ok (.compare .eq (.cons (.int 1) (.int 2)) (.int 3)) => true | _ => false)
-#guard (match Parsing.parseExpr "1 + 2 :: 3" with
-  | .ok (.cons (.binop .add (.int 1) (.int 2)) (.int 3)) => true | _ => false)
-#guard (match Parsing.parseExpr "1 :: 2 * 3" with
-  | .ok (.cons (.int 1) (.binop .mul (.int 2) (.int 3))) => true | _ => false)
-#guard (match Parsing.parseExpr "1 :: 2 :: 3" with
-  | .ok (.cons (.int 1) (.cons (.int 2) (.int 3))) => true | _ => false)
+-- Lists and tuples type-check.
+#guard elaborates (jq ["g.n"] "[g.n, g.n] == [1, 2]")
+#guard elaborates (jq ["g.n"] "(g.n, g.planar) == (1, true)")
+#guard elaborates (jq ["g.n"] "(g.n, g.planar).0 == g.n")
+#guard !elaborates (jq ["g.n"] "(g.n, g.planar) == (g.n, g.n)")   -- product types differ
 
 -- SQL expression rendering (shown for review, not asserted). Query rendering now
 -- needs a `Database`, so it is exercised by `Main` against `graphs-small.db`.

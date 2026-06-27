@@ -14,9 +14,11 @@ mutual
 def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprOfTy Γ e' t } :=
   match e with
 
-  | .nil | .listLit [] =>
+  | .list es =>
     match t with
-    | .list _ => .ok ⟨.nil, .nil⟩
+    | .list t => do
+      let ⟨es, hes⟩ ← checkList Γ t es
+      return ⟨.list es, .list hes⟩
     | _ => throw s!"expected {repr t}, but got a list"
 
   | .ite e₁ e₂ e₃ => do
@@ -96,15 +98,12 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     let ⟨_, e', he⟩ ← infer Γ e
     return ⟨.bool, .undefined e', .undefined he⟩
 
-  | .cons e es => do
-    let ⟨t, e', he⟩ ← infer Γ e
-    let ⟨es', hes⟩ ← check Γ es (.list t)
-    return ⟨.list t, .cons e' es', .cons he hes⟩
+  | .list [] => throw "cannot infer the type of this empty list"
 
-  | .listLit (e :: es) => do
-    let ⟨t, e', he⟩ ← infer Γ e
-    let ⟨rest, hrest⟩ ← checkList Γ t es
-    return ⟨.list t, .cons e' rest, .cons he hrest⟩
+  | .list (e :: es) => do
+    let ⟨t, e, he⟩ ← infer Γ e
+    let ⟨es, hes⟩ ← checkList Γ t es
+    return ⟨.list t, .list (e :: es), .list (.cons he hes)⟩
 
   | .ite e₁ e₂ e₃ => do
     let ⟨c, hc⟩ ← check Γ e₁ .bool
@@ -115,9 +114,6 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
   | .tuple es => do
     let ⟨ts, es', h⟩ ← inferTuple Γ es
     return ⟨.prod ts, .tuple es', .tuple h⟩
-
-  | .nil | .listLit [] =>
-    throw "cannot infer the type of this empty list"
 
 /-- Check a tuple's components against the product's component types. -/
 def checkTuple (Γ : Context) :
@@ -143,17 +139,17 @@ def inferTuple (Γ : Context) :
     let ⟨ts, es', hes⟩ ← inferTuple Γ es
     return ⟨t :: ts, e' :: es', .cons he hes⟩
 
-/-- Check each list element against `t`, building a `cons` chain ending in `nil`. -/
+/-- Check each list element against `t`. -/
 def checkList (Γ : Context) (t : Ty) :
-    List Input.Expr → Result { e' : Expr // ExprOfTy Γ e' (.list t) }
+    List Input.Expr → Result { es : List Expr // ListOfTy Γ es t }
 
   | [] =>
-    .ok ⟨.nil, .nil⟩
+    .ok ⟨[], .nil⟩
 
   | e :: es => do
-    let ⟨e', he⟩ ← check Γ e t
-    let ⟨rest, hrest⟩ ← checkList Γ t es
-    return ⟨.cons e' rest, .cons he hrest⟩
+    let ⟨e, he⟩ ← check Γ e t
+    let ⟨es, hes⟩ ← checkList Γ t es
+    return ⟨e :: es, .cons he hes⟩
 
 end
 

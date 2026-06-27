@@ -49,13 +49,9 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
         ts[i]? = .some t →
         ExprOfTy Γ (.proj e i) t
 
-  | nil : ∀ {Γ t},
-        ExprOfTy Γ .nil (.list t)
-
-  | cons : ∀ {Γ e es t},
-        ExprOfTy Γ e t →
-        ExprOfTy Γ es (.list t) →
-        ExprOfTy Γ (.cons e es) (.list t)
+  | list : ∀ {Γ es t},
+        ListOfTy Γ es t →
+        ExprOfTy Γ (.list es) (.list t)
 
   | ite : ∀ {Γ c a b t},
         ExprOfTy Γ c .bool →
@@ -74,5 +70,9 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
 inductive TupleOfTy : Context → List Expr → List Ty → Prop where
   | nil : ∀ {Γ}, TupleOfTy Γ [] []
   | cons : ∀ {Γ e t es ts}, ExprOfTy Γ e t → TupleOfTy Γ es ts → TupleOfTy Γ (e :: es) (t :: ts)
+
+inductive ListOfTy : Context → List Expr → Ty → Prop where
+  | nil : ∀ {Γ t}, ListOfTy Γ [] t
+  | cons : ∀ {Γ e es t}, ExprOfTy Γ e t → ListOfTy Γ es t → ListOfTy Γ (e :: es) t
 
 end

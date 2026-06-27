@@ -14,10 +14,9 @@ inductive Expr where
   | unop : UnaryOp → Expr → Expr
   | binop : BinaryOp → Expr → Expr → Expr
   | compare : ComparisonOp → Ty → Expr → Expr → Expr
+  | list : List Expr → Expr
   | tuple : List Expr → Expr
   | proj : Expr → Nat → Expr
-  | nil : Expr
-  | cons : Expr → Expr → Expr
   | ite : Expr → Expr → Expr → Expr
   | defined : Expr → Expr
   | undefined : Expr → Expr
