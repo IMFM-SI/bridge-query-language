@@ -31,26 +31,40 @@ The available domains and their fields are obtained from the `describe` tool.
 
 ## Expressions
 
-The condition and the order expressions are written in the following grammar.
+The condition and the order expressions are written in the following grammar. It is
+ambiguous; precedence and associativity are fixed under *Operators* below.
 
 ```
-expr     ::= "if" expr "then" expr "else" expr
-           | cons
-cons     ::= or ("::" cons)?
-or       ::= and ("||" and)*
-and      ::= cmp ("&&" cmp)*
-cmp      ::= add (compare add)?
-add      ::= mul (("+" | "-") mul)*
-mul      ::= unary ("*" unary)*
-unary    ::= ("defined" | "undefined" | "!" | "-") unary
-           | postfix
-postfix  ::= atom ("." integer)*
-atom     ::= integer | "true" | "false" | string
-           | "[" (expr ("," expr)*)? "]"
-           | "(" expr ("," expr)* ")"
-           | variable "." field
-           | constant
-compare  ::= "==" | "=" | "!=" | "<" | "<=" | ">" | ">="
+expr ::= "if" expr "then" expr "else" expr
+       | expr "||" expr
+       | expr "&&" expr
+       | expr "==" expr
+       | expr "!=" expr
+       | expr "<" expr
+       | expr "<=" expr
+       | expr ">" expr
+       | expr ">=" expr
+       | expr "::" expr
+       | expr "+" expr
+       | expr "-" expr
+       | expr "*" expr
+       | "!" expr
+       | "-" expr
+       | "defined" expr
+       | "undefined" expr
+       | expr "." integer
+       | atom
+
+atom ::= integer
+       | string
+       | "true"
+       | "false"
+       | variable "." field
+       | constant
+       | "(" expr ")"
+       | "(" expr "," … "," expr ")"
+       | "[" "]"
+       | "[" expr "," … "," expr "]"
 ```
 
 ## Operators
@@ -59,11 +73,11 @@ The operators are listed in order of increasing precedence; operators on the sam
 line share a precedence level.
 
 - `if … then … else …`, the conditional.
-- `::`, list construction, right-associative.
 - `||` (`∨`), disjunction, left-associative.
 - `&&` (`∧`), conjunction, left-associative.
 - `==` `!=` `<` `<=` `>` `>=`, comparison, non-associative; the equivalents `=`, `≠`,
   `≤`, `≥` are also accepted.
+- `::`, list construction, right-associative.
 - `+` `-`, addition and subtraction, left-associative.
 - `*`, multiplication, left-associative.
 - `!` (`¬`), unary `-`, `defined`, and `undefined`, the prefix operators.

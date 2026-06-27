@@ -34,6 +34,16 @@ def elaborates (j : Lean.Json) : Bool :=
 #guard !elaborates (jq ["g.bogus"] "g.planar")   -- unknown output field
 #guard !elaborates (jq ["g.n"] "g.planar + 1")   -- Bool used in arithmetic
 
+-- `::` precedence: tighter than comparison, looser than + - *, right-associative.
+#guard (match Parsing.parseExpr "1 :: 2 == 3" with
+  | .ok (.compare .eq (.cons (.int 1) (.int 2)) (.int 3)) => true | _ => false)
+#guard (match Parsing.parseExpr "1 + 2 :: 3" with
+  | .ok (.cons (.binop .add (.int 1) (.int 2)) (.int 3)) => true | _ => false)
+#guard (match Parsing.parseExpr "1 :: 2 * 3" with
+  | .ok (.cons (.int 1) (.binop .mul (.int 2) (.int 3))) => true | _ => false)
+#guard (match Parsing.parseExpr "1 :: 2 :: 3" with
+  | .ok (.cons (.int 1) (.cons (.int 2) (.int 3))) => true | _ => false)
+
 -- SQL expression rendering (shown for review, not asserted). Query rendering now
 -- needs a `Database`, so it is exercised by `Main` against `graphs-small.db`.
 #eval IO.println (toString (SQL.Expr.binop .and
