@@ -28,15 +28,14 @@ database holds those objects. The query language is defined in
   of SQLite. On macOS, the Xcode Command Line Tools (`xcode-select --install`).
 - **leansqlite** — fetched automatically by Lake as a git dependency (over SSH);
   no manual clone needed.
-- For the MCP server: Python with the **mcp** package; the `mcp[cli]` extra adds
-  the `mcp` dev tool used to test the server.
+- For the MCP server: Python and the `mathql-mcp` package under `python/`, installed
+  editable. It depends on **mcp** (with the `cli` extra) and **networkx**.
 - For regenerating the small-graphs database (optional): **nauty** (`geng`) and
   Python with **networkx**.
 
 ```
 python3 -m venv .venv && source .venv/bin/activate
-python -m pip install "mcp[cli]"      # the MCP server
-python -m pip install networkx        # only to regenerate databases
+python -m pip install -e python       # the MCP server and its dependencies
 ```
 
 ## Building the engine
@@ -92,10 +91,18 @@ the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also accepted.
 
 ## MCP server
 
-`python python/mathql.py` starts an MCP server exposing MathQL to an agent as two
-tools — `describe` and `query` — backed by one persistent `mathql` subprocess.
-Point an MCP client at that command (with `mcp` installed), or run
-`mcp dev python/mathql.py` for the inspector.
+The `mathql-mcp` package under `python/` runs an MCP server exposing MathQL to an
+agent, backed by one persistent `mathql` subprocess. After `pip install -e python` it
+is the `mathql-mcp` command. It offers:
+
+- `query`, `describe`, `grammar` — run a query, read the schema, read the grammar;
+- `edge_list`, `neighbors`, `shortest_path` — decode a graph's `graph6` string into
+  its structure, via networkx;
+- `max_clique`, `max_independent_set`, `connected_components`, `coloring` — witnesses
+  for the clique number, independence number, components, and a proper coloring.
+
+Point an MCP client at the `mathql-mcp` command, or run `mcp dev
+python/src/mathql_mcp/server.py` for the inspector.
 
 ## Tests
 
