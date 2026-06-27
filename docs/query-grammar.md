@@ -3,7 +3,7 @@
 This document describes the grammar of the MathQL query language: the structure of a
 query and the expressions that appear in its condition and ordering.
 
-## The query
+## Queries
 
 A query is a JSON object:
 
@@ -27,11 +27,13 @@ A query is a JSON object:
   ascending or descending.
 - `limit` (optional) bounds the number of rows returned.
 
+## Domains
+
 The available domains and their fields are obtained from the `describe` tool.
 
 ## Types
 
-Every value has a type:
+Expressions are typed. The types are:
 
 ```
 type ::= "int"
@@ -48,10 +50,13 @@ type ::= "int"
 - a product `τ₁ * … * τₙ` — a tuple of components of the given types; the nullary
   product is the unit type.
 
+Types are never written down in a query, but may appear in error messages.
+
 ## Expressions
 
 The condition and the order expressions are written in the following grammar. It is
-ambiguous; precedence and associativity are fixed under *Operators* below.
+ambiguous as written, but the clauses are written in the order of precedence.
+Precedence and associativity are described in detail in *Precedence and associativity** below.
 
 ```
 expr ::= "if" expr "then" expr "else" expr
@@ -72,9 +77,7 @@ expr ::= "if" expr "then" expr "else" expr
        | "defined" expr
        | "undefined" expr
        | expr "." integer
-       | atom
-
-atom ::= integer
+       | integer
        | string
        | "true"
        | "false"
@@ -86,51 +89,46 @@ atom ::= integer
        | "[" expr "," … "," expr "]"
 ```
 
-Each former and how it types:
+The meaning and types of the above expressions is as follows:
 
-- `if c then a else b` — yields `a` when `c` is true and `b` otherwise; `c` must be
-  `bool`, the two branches must share a type, and that is the type of the whole
+- `if c then a else b` — evaluates to `a` when `c` is true and to `b` otherwise; `c` must be
+  `bool`, the two branches must have the same type, which is the type of the whole
   expression.
 - `e1 || e2` and `e1 && e2` — disjunction and conjunction; the operands and the
   result are `bool`.
 - `e1 == e2`, `e1 != e2`, `e1 < e2`, `e1 <= e2`, `e1 > e2`, `e1 >= e2` — comparisons;
   the two operands must have the same type, and the result is `bool`.
-- `e1 :: e2` — prepends `e1` to the list `e2`; with `e1` of type τ and `e2` of type
-  `list` τ, the result has type `list` τ.
+- `e1 :: e2` — prepends `e1` to the list `e2`; with `e1` of type `τ` and `e2` of type
+  `list τ`, the result has type `list τ`.
 - `e1 + e2`, `e1 - e2`, `e1 * e2`, and `- e` — integer arithmetic; the operands and
   the result are `int`.
 - `! e` — boolean negation; the operand and the result are `bool`.
 - `defined e` and `undefined e` — test whether `e` has a value or is absent; the
   result is `bool`.
-- `e . i` — the `i`-th component (counting from zero) of the tuple `e`; its type is
+- `e.i` — the `i`-th component (counting from zero) of the tuple `e`; its type is
   that component's type.
-- a literal `42`, `"text"`, `true`, or `false` — of type `int`, `string`, `bool`,
-  `bool`.
+- `42` – integer literal of type `int`
+- `"text"` – string literal of type `string`
+- `true` and `false` – truth values of type `bool`
 - `x.field` — the value of the field `field` of the variable `x`, of the field's
-  declared type (see `describe`).
-- `c` — a named constant declared by the database, of its declared type.
-- `(e)` — grouping; `(e1, …, en)` — a tuple, of the corresponding product type.
-- `[]` and `[e1, …, en]` — a list literal, of type `list` τ.
+  declared type (see `describe` tool).
+- `c` — a named constant declared by the database, of its declared type (see `describe` tool)
+- `(e)` — grouping
+- `(e1, …, en)` — a tuple, of the corresponding product type.
+- `[]` and `[e1, …, en]` — a list literal, of type `list τ` where its elements have type `τ`.
 
-A condition and an order expression are evaluated by the database, which has no
-representation for lists or products; an expression of list or product type — `::`,
-a list or tuple literal, or a tuple projection — therefore cannot appear in one.
-
-## Operators
+## Precedence and associativity
 
 The operators are listed in order of increasing precedence; operators on the same
-line share a precedence level.
+line share a precedence level. Alternative UTF-8 forms shown in parentheses are
+accepted equivalents:
 
 - `if … then … else …`, the conditional.
-- `||` (`∨`), disjunction, left-associative.
-- `&&` (`∧`), conjunction, left-associative.
-- `==` `!=` `<` `<=` `>` `>=`, comparison, non-associative; the equivalents `=`, `≠`,
-  `≤`, `≥` are also accepted.
+- `||` (UTF-8 `∨`), disjunction, left-associative.
+- `&&` (UTF-8 `∧`), conjunction, left-associative.
+- `==` `!=` `<` `<=` `>` `>=`, comparison, non-associative (UTF-8 `=`, `≠`,
+  `≤`, `≥`).
 - `::`, list construction, right-associative.
 - `+` `-`, addition and subtraction, left-associative.
 - `*`, multiplication, left-associative.
-- `!` (`¬`), unary `-`, `defined`, and `undefined`, the prefix operators.
-- `.`, postfix projection of a tuple component by position.
-
-The ASCII spellings are recommended; the UTF-8 forms shown in parentheses are
-accepted equivalents.
+- `!` (UTF-8 `¬`), unary `-`, `defined`, and `undefined`, the prefix operators.
