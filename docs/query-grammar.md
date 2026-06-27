@@ -29,6 +29,25 @@ A query is a JSON object:
 
 The available domains and their fields are obtained from the `describe` tool.
 
+## Types
+
+Every value has a type:
+
+```
+type ::= "int"
+       | "bool"
+       | "string"
+       | "list" type
+       | type "*" … "*" type
+```
+
+- `int` — integers.
+- `bool` — the truth values `true` and `false`.
+- `string` — text.
+- `list` τ — an ordered list of values of type τ.
+- a product `τ₁ * … * τₙ` — a tuple of components of the given types; the nullary
+  product is the unit type.
+
 ## Expressions
 
 The condition and the order expressions are written in the following grammar. It is
@@ -67,6 +86,36 @@ atom ::= integer
        | "[" expr "," … "," expr "]"
 ```
 
+Each former and how it types:
+
+- `if c then a else b` — yields `a` when `c` is true and `b` otherwise; `c` must be
+  `bool`, the two branches must share a type, and that is the type of the whole
+  expression.
+- `e1 || e2` and `e1 && e2` — disjunction and conjunction; the operands and the
+  result are `bool`.
+- `e1 == e2`, `e1 != e2`, `e1 < e2`, `e1 <= e2`, `e1 > e2`, `e1 >= e2` — comparisons;
+  the two operands must have the same type, and the result is `bool`.
+- `e1 :: e2` — prepends `e1` to the list `e2`; with `e1` of type τ and `e2` of type
+  `list` τ, the result has type `list` τ.
+- `e1 + e2`, `e1 - e2`, `e1 * e2`, and `- e` — integer arithmetic; the operands and
+  the result are `int`.
+- `! e` — boolean negation; the operand and the result are `bool`.
+- `defined e` and `undefined e` — test whether `e` has a value or is absent; the
+  result is `bool`.
+- `e . i` — the `i`-th component (counting from zero) of the tuple `e`; its type is
+  that component's type.
+- a literal `42`, `"text"`, `true`, or `false` — of type `int`, `string`, `bool`,
+  `bool`.
+- `x.field` — the value of the field `field` of the variable `x`, of the field's
+  declared type (see `describe`).
+- `c` — a named constant declared by the database, of its declared type.
+- `(e)` — grouping; `(e1, …, en)` — a tuple, of the corresponding product type.
+- `[]` and `[e1, …, en]` — a list literal, of type `list` τ.
+
+A condition and an order expression are evaluated by the database, which has no
+representation for lists or products; an expression of list or product type — `::`,
+a list or tuple literal, or a tuple projection — therefore cannot appear in one.
+
 ## Operators
 
 The operators are listed in order of increasing precedence; operators on the same
@@ -85,25 +134,3 @@ line share a precedence level.
 
 The ASCII spellings are recommended; the UTF-8 forms shown in parentheses are
 accepted equivalents.
-
-## Types
-
-The scalar types are `int`, `bool`, and `string`. A comparison requires both
-operands to have the same type and yields `bool`; arithmetic operates on `int`; and
-`&&`, `||`, `!` operate on `bool`. The presence tests `defined e` and `undefined e`
-yield `bool`.
-
-A condition and every order expression are evaluated by the database, so they are
-restricted to field projections, constants, literals, arithmetic, comparison,
-`&&`/`||`/`!`, the conditional, and `defined`/`undefined`. List and tuple
-expressions, and tuple projection, belong to the language but are unavailable in a
-query, because the database has no representation for them.
-
-## Examples
-
-```
-{"domains": [["g", "Graph"]], "output": ["g.graph6"], "condition": "g.num_vertices == 5 && g.is_tree"}
-{"domains": [["g", "Graph"]], "output": ["g.graph6", "g.num_edges"], "condition": "g.num_vertices == 5", "order": [["g.num_edges", "desc"]], "limit": 3}
-{"domains": [["g", "Graph"], ["h", "Graph"]], "output": ["g.graph6", "h.graph6"], "condition": "g.num_vertices == h.num_vertices && g.num_edges < h.num_edges", "limit": 5}
-{"domains": [["g", "Graph"]], "output": ["g"], "condition": "undefined g.girth && g.num_vertices <= 4"}
-```
