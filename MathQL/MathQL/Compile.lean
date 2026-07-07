@@ -21,16 +21,22 @@ mutual
 /-- Compile a typed condition expression to a SQL expression. -/
 def toSQL (Γ : SqlCtx) (e : Expr) : Result SQL.Expr := do
   match e with
-  | .int n => return .int n
+  | .int n =>
+    return .int n
 
-  | .bool b => return .bool b
+  | .bool b =>
+    return .bool b
 
-  | .str s => return .str s
+  | .str s =>
+    return .str s
 
   | .const x =>
     match Γ.const x with
     | some s => return s
     | none => throw s!"unknown constant {repr x}"
+
+  | .id x d =>
+    sorry
 
   | .field x l =>
     match Γ.field x l with

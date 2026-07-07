@@ -8,9 +8,9 @@ mutual
 
 inductive ExprOfTy : Context → Expr → Ty → Prop where
 
-  | const : ∀ {Γ : Context} {x t},
-        Γ.lookupConst x = .some t →
-        ExprOfTy Γ (.const x) t
+  | ident : ∀ {Γ : Context} {x t},
+        Γ.lookupIdent x = .some t →
+        ExprOfTy Γ (.ident x) t
 
   | int : ∀ {Γ n},
         ExprOfTy Γ (.int n) .int
@@ -21,9 +21,22 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
   | str : ∀ {Γ s},
         ExprOfTy Γ (.str s) .string
 
-  | field : ∀ {Γ n l t},
-        Γ.lookupInputField n l = .some t →
-        ExprOfTy Γ (.field n l) t
+  | id : ∀ {Γ e d dt t},
+       ExprOfTy Γ e (.domain d) →
+       Γ.lookupDomain d = .some dt →
+       dt.idTy = t →
+       ExprOfTy Γ (.id d e) t
+
+  | field : ∀ {Γ e d dt l t},
+        ExprOfTy Γ e (.domain d) →
+        Γ.lookupDomain d = .some dt →
+        dt.inputField.lookup l = .some t →
+        ExprOfTy Γ (.field d e l) t
+
+  | obj : ∀ {Γ d dt e},
+        Γ.lookupDomain d = .some dt →
+        ExprOfTy Γ e dt.idTy →
+        ExprOfTy Γ (.obj d e) (.domain d)
 
   | unop : ∀ {Γ op e t₁ t₂},
         unaryTy op = (t₁, t₂) →

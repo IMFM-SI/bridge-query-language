@@ -10,8 +10,10 @@ inductive Expr where
   | int : Int → Expr
   | bool : Bool → Expr
   | str : String → Expr
-  | const : String → Expr
-  | field : String → String → Expr
+  | ident : String → Expr
+  | id : Expr → Expr
+  | field : Expr → String → Expr
+  | obj : String → Expr → Expr
   | proj : Expr → Nat → Expr
   | list : List Expr → Expr
   | ite : Expr → Expr → Expr → Expr
@@ -23,11 +25,11 @@ inductive Expr where
   | undefined : Expr → Expr
 deriving Repr
 
-/-- An output item: a domain variable `x` (the whole object), or a field
-    projection `x.field`. -/
-structure OutputItem where
-  var : String
-  field : Option String
+/-- An output item -/
+inductive OutputItem where
+  | ident : String → OutputItem
+  | field : String → String → OutputItem
+  | id : String → OutputItem
 deriving Repr
 
 /-- A domain binding `x ∈ D`: the variable and the domain it ranges over. -/

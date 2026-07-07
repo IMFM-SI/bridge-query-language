@@ -148,6 +148,8 @@ def graphOutput : List (Label × (Graph → Lean.Json)) :=
 /-- The `Graph` domain over the `graph` table. -/
 def graphDomain : Domain where
   table := "graph"
+  primaryKey := sorry
+  idTy := sorry
   inputField := graphColumns.map fun (name, ty, doc) =>
     (.label name, { label := .label name, column := name, ty, doc })
   select := graphColumns.map fun (name, _, _) => name

@@ -21,6 +21,10 @@ structure Schema where
   table : String
   /-- Fields of the type, equivalently the columns of the table -/
   inputField : List (Label × InputField)
+  /-- The columns which form the primary key -/
+  primaryKey : List InputField
+  /-- The type of the primary key in MathQL -/
+  idTy : Ty
   /-- The columns this domain projects, in order -/
   select : List String
 
@@ -48,7 +52,8 @@ structure Database where
 
 def Database.getDomainContext (D : Database) : DomainContext :=
   D.domain.map fun (n, d) =>
-    (n, { inputField := d.inputField.map fun (l, f) => (l, f.ty)
+    (n, { idTy := d.idTy
+          inputField := d.inputField.map fun (l, f) => (l, f.ty)
           outputField := d.outputField.map fun (l, _) => l })
 
 def Database.getContext (D : Database) : Context where

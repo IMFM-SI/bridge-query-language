@@ -25,9 +25,7 @@ instance : FromJson Direction where
     | s => throw s!"order direction must be \"asc\" or \"desc\", got \"{s}\""
 
 instance : FromJson OutputItem where
-  fromJson? j := do
-    let (var, field) ← Parsing.parseOutputItem (← j.getStr?)
-    return { var, field }
+  fromJson? j := j.getStr? >>= Parsing.parseOutputItem
 
 instance : FromJson Binding where
   fromJson? j := do

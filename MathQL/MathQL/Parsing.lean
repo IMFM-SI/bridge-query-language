@@ -102,6 +102,7 @@ private partial def mulExpr : Parser Input.Expr :=
   chainl1 unaryExpr (tok "*" *> pure (.binop .mul))
 
 private partial def unaryExpr : Parser Input.Expr :=
+  (do keyword "id"; tok "("; let e ← expr; tok ")"; return .id e) <|>
   (do keyword "defined"; return .defined (← unaryExpr)) <|>
   (do keyword "undefined"; return .undefined (← unaryExpr)) <|>
   (do (tok "¬" <|> tok "!"); return .unop UnaryOp.not (← unaryExpr)) <|>
@@ -111,11 +112,12 @@ private partial def unaryExpr : Parser Input.Expr :=
 private partial def postfixExpr : Parser Input.Expr := do
   postfixProj (← atomExpr)
 
-/-- Apply any number of tuple projections `.i` (with `i` a numeral). Field
-    access `x.label` is handled at the atom, since a field projects a domain
-    variable, not an arbitrary expression. -/
+/-- Apply any number of postfix projections: tuple projections `.i` (with `i` a
+    numeral) and field projections `.label`, off an arbitrary expression. -/
 private partial def postfixProj (e : Input.Expr) : Parser Input.Expr :=
-  (do let i ← attempt (do tok "."; intLitNat); postfixProj (.proj e i)) <|> pure e
+  (do let i ← attempt (do tok "."; intLitNat); postfixProj (.proj e i)) <|>
+  (do let l ← attempt (do tok "."; ident); postfixProj (.field e l)) <|>
+  pure e
 
 private partial def intLitNat : Parser Nat := do
   let n ← digits
@@ -131,12 +133,13 @@ private partial def atomExpr : Parser Input.Expr :=
   parenExpr <|>
   identExpr
 
-/-- A bare identifier is a constant; `x.label` is a field projection off the
-    domain variable `x`. -/
+/-- A bare identifier: a domain variable or a named constant, resolved during
+    elaboration; `D[e]` is the object of domain `D` whose primary key is `e`.
+    Field projection is handled by `postfixProj`. -/
 private partial def identExpr : Parser Input.Expr := do
   let x ← ident
-  (do let l ← attempt (do tok "."; ident); return Input.Expr.field x l) <|>
-  pure (Input.Expr.const x)
+  (do tok "["; let e ← expr; tok "]"; return .obj x e) <|>
+  pure (.ident x)
 
 private partial def parenExpr : Parser Input.Expr := do
   tok "("
@@ -149,11 +152,14 @@ private partial def parenExpr : Parser Input.Expr := do
 
 end
 
-/-- One output item: a domain variable `x` (the whole object) or a field
-    projection `x.label`. -/
-private def outputItem : Parser (String × Option String) := do
-  let x ← ident
-  (do let l ← attempt (do tok "."; ident); return (x, some l)) <|> pure (x, none)
+/-- One output item: `id(x)` (the primary key), a field projection `x.label`,
+    or a bare `x` (the whole object). -/
+private def outputItem : Parser Input.OutputItem :=
+  (do keyword "id"; tok "("; let x ← ident; tok ")"; return .id x) <|>
+  (do
+    let x ← ident
+    (do let l ← attempt (do tok "."; ident); return Input.OutputItem.field x l) <|>
+    pure (Input.OutputItem.ident x))
 
 /-- Run a parser over an entire string, requiring it to consume all input. -/
 private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
@@ -162,8 +168,8 @@ private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
 /-- Parse an expression from a string. Used by the JSON query decoder. -/
 def parseExpr : String → Except String Input.Expr := runComplete expr
 
-/-- Parse an output item (`x` or `x.label`) from a string. -/
-def parseOutputItem : String → Except String (String × Option String) := runComplete outputItem
+/-- Parse an output item (`x`, `x.label`, or `id(x)`) from a string. -/
+def parseOutputItem : String → Except String Input.OutputItem := runComplete outputItem
 
 /-- Parse a single identifier from a string. -/
 def parseIdent : String → Except String String := runComplete ident

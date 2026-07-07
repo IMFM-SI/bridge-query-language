@@ -44,24 +44,41 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
 def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // ExprOfTy Γ e' t }) :=
   match e with
 
-  | .int n => .ok ⟨.int, .int n, .int⟩
+  | .int n => pure ⟨.int, .int n, .int⟩
 
-  | .bool b => .ok ⟨.bool, .bool b, .bool⟩
+  | .bool b => pure ⟨.bool, .bool b, .bool⟩
 
-  | .str s => .ok ⟨.string, .str s, .str⟩
+  | .str s => pure ⟨.string, .str s, .str⟩
 
-  | .const x' =>
+  | .ident x' =>
     let x := .ident x'
-    match h : Γ.lookupConst x with
-    | some t => .ok ⟨t, .const x, .const h⟩
+    match h : Γ.lookupIdent x with
+    | some t => pure ⟨t, .ident x, .ident h⟩
     | none => throw s!"unbound constant '{x'}'"
 
-  | .field x' l' =>
-    let x := .ident x'
-    let l := .label l'
-    match h : Γ.lookupInputField x l with
-    | some t => return ⟨t, .field x l, .field h⟩
-    | none => throw s!"{x'} does not have field '{l'}'"
+  | .id e => do
+    let ⟨d, e, h⟩ ← inferDomain Γ e
+    match hd : Γ.lookupDomain d with
+    | some dt => pure ⟨dt.idTy, .id d e, .id h hd rfl⟩
+    | none => throw s!"unknown domain {repr d}"
+
+  | .field e l' => do
+    let l := Label.label l'
+    let ⟨d, e, h⟩ ← inferDomain Γ e
+    match hd : Γ.lookupDomain d with
+    | some dt =>
+      match ht : dt.inputField.lookup l with
+      | some t => pure ⟨t, .field d e l, .field h hd ht⟩
+      | none => throw s!"domain {repr d} does not have field {l'} "
+    | none => throw s!"unknown domain {repr d}"
+
+  | .obj d' e => do
+    let d := .domain d'
+    match hd : Γ.lookupDomain d with
+    | some dt =>
+      let ⟨e, he⟩ ← check Γ e dt.idTy
+      pure ⟨.domain d, .obj d e, .obj hd he⟩
+    | none => throw s!"unknown domain {d'}"
 
   | .proj e idx => do
     let ⟨te, e', he⟩ ← infer Γ e
@@ -76,7 +93,7 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
     match h : unaryTy op with
     | (t₁, t₂) => do
       let ⟨e, he⟩ ← check Γ e t₁
-      return ⟨t₂, .unop op e, .unop h he⟩
+      pure ⟨t₂, .unop op e, .unop h he⟩
 
   | .binop op e₁ e₂ =>
     match h : binaryTy op with
@@ -114,6 +131,14 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
   | .tuple es => do
     let ⟨ts, es', h⟩ ← inferTuple Γ es
     return ⟨.prod ts, .tuple es', .tuple h⟩
+
+def inferDomain (Γ : Context) (e : Input.Expr) :
+  Result (Σ (d : DomainName), { e : Expr // ExprOfTy Γ e (.domain d)})
+  := do
+  let ⟨t, e, h⟩ ← infer Γ e
+  match t, h with
+  | .domain d, h => return ⟨d, e, h⟩
+  | t, _ => throw s!"domain expected but got {repr t}"
 
 /-- Check a tuple's components against the product's component types. -/
 def checkTuple (Γ : Context) :
@@ -153,16 +178,9 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkOutput (Γ : Context) : List (String × Option String) → Result (List (Ident × Option Label))
+def checkOutput (Γ : Context) : List (String × String) → Result (List (Ident × Option Label))
 | [] => return []
-| (x', .none) :: xls => do
-  let x := Ident.ident x'
-  match Γ.lookupVar x with
-  | .some _ =>
-    let xls ← checkOutput Γ xls
-    return (x, .none) :: xls
-  | .none => throw s!"unknown variables {x'}"
-| (x', .some l') :: xls => do
+| (x', l') :: xls => do
   let x := .ident x'
   let l := .label l'
   match Γ.isOutputField x l with
@@ -179,18 +197,15 @@ def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
   let n := .domain n'
   match Γ.domain.lookup n with
   | .none => throw s!"unknown domain {n'}"
-  | .some d => checkDomainVars (Γ.extend x (.domain d)) ((x, n) :: acc) xns
+  | .some _ => checkDomainVars (Γ.extendIdent x (.domain n)) ((x, n) :: acc) xns
 
 def checkOrder (Γ : Context) :
     List Input.OrderEntry → Result (List (Expr × Direction))
   | [] => return []
   | entry :: rest => do
-    let ⟨t, e, _⟩ ← infer Γ entry.expr
-    match t with
-    | .int | .bool | .string =>
-      let rest ← checkOrder Γ rest
-      return (e, entry.dir) :: rest
-    | .list _ | .prod _ => throw s!"cannot order by a value of type {repr t}"
+    let ⟨_, e, _⟩ ← infer Γ entry.expr
+    let rest ← checkOrder Γ rest
+    return (e, entry.dir) :: rest
 
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))

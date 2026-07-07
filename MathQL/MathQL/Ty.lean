@@ -5,6 +5,7 @@ namespace MathQL
 
 /-- Types of the query language. -/
 inductive Ty where
+  | domain : DomainName → Ty
   | int : Ty
   | bool : Ty
   | string : Ty
@@ -15,12 +16,13 @@ deriving Repr
 mutual
 
 def Ty.beq : Ty → Ty → Bool
+  | .domain d, .domain e => d == e
   | .int, .int => true
   | .bool, .bool => true
   | .string, .string => true
   | .list a, .list b => Ty.beq a b
   | .prod as, .prod bs => Ty.beqList as bs
-  | .int, _ | .bool, _ | .string, _ | .list _, _ | .prod _, _ => false
+  | .domain _, _ | .int, _ | .bool, _ | .string, _ | .list _, _ | .prod _, _ => false
 
 def Ty.beqList : List Ty → List Ty → Bool
   | [], [] => true
@@ -34,6 +36,7 @@ instance : BEq Ty := ⟨Ty.beq⟩
 mutual
 
 theorem Ty.beq_refl : (a : Ty) → Ty.beq a a = true
+  | .domain _ => BEq.rfl
   | .int => rfl
   | .bool => rfl
   | .string => rfl
@@ -51,6 +54,7 @@ mutual
 theorem Ty.eq_of_beq : (a b : Ty) → Ty.beq a b = true → a = b := by
   intro a b h
   cases a <;> cases b <;> try first | rfl | exact Bool.noConfusion h
+  · exact congrArg Ty.domain (LawfulBEq.eq_of_beq h)
   · exact congrArg Ty.list (Ty.eq_of_beq _ _ h)
   · exact congrArg Ty.prod (Ty.eqList_of_beq _ _ h)
 
@@ -71,6 +75,7 @@ mutual
 
 /-- Render a type as a short string for the schema, e.g. `int`, `list int`. -/
 def Ty.render : Ty → String
+  | .domain (.domain d) => d
   | .int => "int"
   | .bool => "bool"
   | .string => "string"
