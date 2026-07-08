@@ -5,6 +5,8 @@ elaboration into a typed term. -/
 
 namespace MathQL.Input
 
+mutual
+
 /-- Input expressions. -/
 inductive Expr where
   | int : Int → Expr
@@ -12,8 +14,8 @@ inductive Expr where
   | str : String → Expr
   | ident : String → Expr
   | id : Expr → Expr
-  | field : Expr → String → Expr
   | obj : String → Expr → Expr
+  | field : Expr → String → Expr
   | proj : Expr → Nat → Expr
   | list : List Expr → Expr
   | ite : Expr → Expr → Expr → Expr
@@ -25,12 +27,7 @@ inductive Expr where
   | undefined : Expr → Expr
 deriving Repr
 
-/-- An output item -/
-inductive OutputItem where
-  | ident : String → OutputItem
-  | field : String → String → OutputItem
-  | id : String → OutputItem
-deriving Repr
+end
 
 /-- A domain binding `x ∈ D`: the variable and the domain it ranges over. -/
 structure Binding where
@@ -48,7 +45,7 @@ deriving Repr
     type-checker fills in `true`, the empty list, and none respectively. -/
 structure Query where
   domains : List Binding
-  output : List OutputItem
+  output : List (String × Expr)
   condition : Option Expr := none
   order : Option (List OrderEntry) := none
   limit : Option Nat := none

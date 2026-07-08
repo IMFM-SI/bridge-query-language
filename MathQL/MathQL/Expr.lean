@@ -4,6 +4,18 @@ import MathQL.Ty
 
 namespace MathQL
 
+
+mutual
+
+/-- Expressions denoting a domain -/
+inductive Domain where
+  /-- An identifier -/
+  | ident : Ident → Domain
+  /-- Object with the given ID -/
+  | obj : DomainName → Expr → Domain
+  /-- A field that refers to a domain -/
+  | field : Domain → Label → Domain
+
 /-- Expressions -/
 inductive Expr where
   /-- Integer literal -/
@@ -15,11 +27,9 @@ inductive Expr where
   /-- Predefined constant -/
   | ident : Ident → Expr
   /-- Object ID -/
-  | id : DomainName → Expr → Expr
+  | id : DomainName → Domain → Expr
   /-- Field projection -/
-  | field : DomainName → Expr → Label → Expr
-  /-- Object with the given id -/
-  | obj : DomainName → Expr → Expr
+  | field : DomainName → Domain → Label → Expr
   /-- Unary operation -/
   | unop : UnaryOp → Expr → Expr
   /-- Binary operation -/
@@ -38,4 +48,6 @@ inductive Expr where
   | defined : Expr → Expr
   /-- Undefined? -/
   | undefined : Expr → Expr
-deriving Repr
+deriving Repr, BEq
+
+end

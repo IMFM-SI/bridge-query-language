@@ -4,20 +4,13 @@ import MathQL.Rules
 
 namespace MathQL
 
-/-- A type-checked output item. -/
-inductive OutputItem where
-  /-- The whole object, rendered as a JSON object of the domain's output fields -/
-  | ident : Ident → OutputItem
-  /-- One field of an object -/
-  | field : Ident → Label → OutputItem
-  /-- The primary key of an object -/
-  | id : Ident → OutputItem
-deriving BEq
-
 structure Query where
+  /-- domain variables -/
   vars : List (Ident × DomainName)
+  /-- boolean condition -/
   condition : Expr
-  output : List OutputItem
+  /-- output fields with mandatory aliases -/
+  output : List (Ident × Expr)
   limit : Option Nat
   order : List (Expr × Direction)
 

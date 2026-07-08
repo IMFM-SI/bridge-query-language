@@ -3,7 +3,7 @@ import MathQL.Parsing
 import Lean.Data.Json
 
 /-! Decoding a query from its JSON form, the shape used over the MCP interface:
-`{ "domains": [[v,d],…], "output": ["x.l",…], "condition": "…",
+`{ "domains": [[v,d],…], "output": [[name,e],…], "condition": "…",
    "order": [["e","asc"],…], "limit": n }`.
 
 The leaf instances below are where the expression parser runs and identifiers are
@@ -24,8 +24,17 @@ instance : FromJson Direction where
     | "desc" => return .desc
     | s => throw s!"order direction must be \"asc\" or \"desc\", got \"{s}\""
 
-instance : FromJson OutputItem where
-  fromJson? j := j.getStr? >>= Parsing.parseOutputItem
+instance : FromJson (String × Expr) where
+  fromJson? j := do
+    let arr ← j.getArr?
+    match arr.toList with
+    | [n, e] =>
+      let ns ← n.getStr?
+      let name ← Parsing.parseIdent ns
+      let es ← e.getStr?
+      let expr ← Parsing.parseExpr es
+      return (name, expr)
+    | _ => throw "an output field must be a [name, expression] pair"
 
 instance : FromJson Binding where
   fromJson? j := do

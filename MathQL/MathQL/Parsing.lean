@@ -11,7 +11,7 @@ namespace MathQL.Parsing
 open Std.Internal.Parsec Std.Internal.Parsec.String
 open MathQL
 
-private partial def sepBy1 {α} (p : Parser α) (sep : Parser Unit) : Parser (List α) := do
+private def sepBy1 {α} (p : Parser α) (sep : Parser Unit) : Parser (List α) := do
   let x ← p
   let xs ← many (do sep; p)
   return x :: xs.toList
@@ -59,18 +59,24 @@ private def intLit : Parser Int := do
   ws
   return (Int.ofNat n)
 
-/-- The rest of a string literal after an opening quote: characters up to a
-    quote, where a doubled quote `''` stands for an embedded quote. -/
-private partial def stringLitRest (acc : String) : Parser String := do
-  let s ← manyChars (satisfy (· != '\''))
-  skipChar '\''
-  (do skipChar '\''; stringLitRest (acc ++ s ++ "'")) <|> (do ws; return acc ++ s)
+private def intLitNat : Parser Nat := do
+  let n ← digits
+  ws
+  return n
 
-/-- A string literal per the SQL standard: single-quoted, an embedded quote
-    written by doubling, as in `'it''s'`. No backslash escapes. -/
+/-- One character of a string literal: a doubled quote `''` denotes a single
+    quote, any other non-quote character denotes itself. -/
+private def stringChar : Parser Char :=
+  attempt (skipString "''" *> pure '\'') <|> satisfy (· != '\'')
+
+/-- A string literal: single-quoted, an embedded quote written by doubling,
+    as in `'it''s'`. -/
 private def stringLit : Parser String := do
   skipChar '\''
-  stringLitRest ""
+  let s ← manyChars stringChar
+  skipChar '\''
+  ws
+  return s
 
 private def compareOp : Parser ComparisonOp :=
   (tok "≤" *> pure .le) <|> (tok "<=" *> pure .le) <|>
@@ -98,7 +104,7 @@ private partial def andExpr : Parser Input.Expr :=
 
 private partial def cmpExpr : Parser Input.Expr := do
   let l ← addExpr
-  (do let op ← compareOp; return .compare op l (← addExpr)) <|> pure l
+  (do let op ← compareOp; let r ← addExpr; return .compare op l r) <|> pure l
 
 private partial def addExpr : Parser Input.Expr :=
   chainl1 mulExpr
@@ -108,64 +114,48 @@ private partial def mulExpr : Parser Input.Expr :=
   chainl1 unaryExpr (tok "*" *> pure (.binop .mul))
 
 private partial def unaryExpr : Parser Input.Expr :=
-  (do keyword "id"; tok "("; let e ← expr; tok ")"; return .id e) <|>
-  (do keyword "defined"; return .defined (← unaryExpr)) <|>
-  (do keyword "undefined"; return .undefined (← unaryExpr)) <|>
-  (do (tok "¬" <|> tok "!"); return .unop UnaryOp.not (← unaryExpr)) <|>
-  (do tok "-"; return .unop UnaryOp.neg (← unaryExpr)) <|>
+  (do keyword "defined"; let e ← unaryExpr; return .defined e) <|>
+  (do keyword "undefined"; let e ← unaryExpr; return .undefined e) <|>
+  (do keyword "id"; let e ← unaryExpr; return .id e) <|>
+  (do (tok "¬" <|> tok "!"); let e ← unaryExpr; return .unop UnaryOp.not e) <|>
+  (do tok "-"; let e ← unaryExpr; return .unop UnaryOp.neg e) <|>
   postfixExpr
 
 private partial def postfixExpr : Parser Input.Expr := do
-  postfixProj (← atomExpr)
+  let e ← atomExpr
+  postfixProj e
 
-/-- Apply any number of postfix projections: tuple projections `.i` (with `i` a
-    numeral) and field projections `.label`, off an arbitrary expression. -/
+/-- Apply postfix projections: `.i` (a numeral) a tuple projection, `.label` a
+    field projection. -/
 private partial def postfixProj (e : Input.Expr) : Parser Input.Expr :=
   (do let i ← attempt (do tok "."; intLitNat); postfixProj (.proj e i)) <|>
   (do let l ← attempt (do tok "."; ident); postfixProj (.field e l)) <|>
   pure e
 
-private partial def intLitNat : Parser Nat := do
-  let n ← digits
-  ws
-  return n
-
 private partial def atomExpr : Parser Input.Expr :=
-  (do return .int (← intLit)) <|>
+  (do let n ← intLit; return .int n) <|>
   (keyword "true" *> pure (.bool true)) <|>
   (keyword "false" *> pure (.bool false)) <|>
-  (do return .str (← stringLit)) <|>
+  (do let s ← stringLit; return .str s) <|>
   (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .list items) <|>
-  parenExpr <|>
-  identExpr
+  parenOrTupleExpr <|>
+  identOrObjExpr
 
-/-- A bare identifier: a domain variable or a named constant, resolved during
-    elaboration; `D[e]` is the object of domain `D` whose primary key is `e`.
-    Field projection is handled by `postfixProj`. -/
-private partial def identExpr : Parser Input.Expr := do
+/-- A bare identifier `x`, or an object `D[e]`. -/
+private partial def identOrObjExpr : Parser Input.Expr := do
   let x ← ident
-  (do tok "["; let e ← expr; tok "]"; return .obj x e) <|>
-  pure (.ident x)
+  (do tok "["; let e ← expr; tok "]"; return .obj x e) <|> pure (.ident x)
 
-private partial def parenExpr : Parser Input.Expr := do
+private partial def parenOrTupleExpr : Parser Input.Expr := do
   tok "("
-  let first ← expr
-  let more ← many (do tok ","; expr)
+  let e ← expr
+  let es ← many (do tok ","; expr)
   tok ")"
-  return match more.toList with
-    | [] => first
-    | rest => .tuple (first :: rest)
+  return match es.toList with
+    | [] => e
+    | es => .tuple (e :: es)
 
 end
-
-/-- One output item: `id(x)` (the primary key), a field projection `x.label`,
-    or a bare `x` (the whole object). -/
-private def outputItem : Parser Input.OutputItem :=
-  (do keyword "id"; tok "("; let x ← ident; tok ")"; return .id x) <|>
-  (do
-    let x ← ident
-    (do let l ← attempt (do tok "."; ident); return Input.OutputItem.field x l) <|>
-    pure (Input.OutputItem.ident x))
 
 /-- Run a parser over an entire string, requiring it to consume all input. -/
 private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
@@ -173,9 +163,6 @@ private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
 
 /-- Parse an expression from a string. Used by the JSON query decoder. -/
 def parseExpr : String → Except String Input.Expr := runComplete expr
-
-/-- Parse an output item (`x`, `x.label`, or `id(x)`) from a string. -/
-def parseOutputItem : String → Except String Input.OutputItem := runComplete outputItem
 
 /-- Parse a single identifier from a string. -/
 def parseIdent : String → Except String String := runComplete ident

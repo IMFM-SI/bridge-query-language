@@ -22,21 +22,16 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
         ExprOfTy Γ (.str s) .string
 
   | id : ∀ {Γ e d dt t},
-       ExprOfTy Γ e (.domain d) →
+       DomainOfTy Γ e d →
        Γ.lookupDomain d = .some dt →
        dt.idTy = t →
        ExprOfTy Γ (.id d e) t
 
   | field : ∀ {Γ e d dt l t},
-        ExprOfTy Γ e (.domain d) →
+        DomainOfTy Γ e d →
         Γ.lookupDomain d = .some dt →
-        dt.inputField.lookup l = .some t →
+        dt.inputField.lookup l = .some (.ty t) →
         ExprOfTy Γ (.field d e l) t
-
-  | obj : ∀ {Γ d dt e},
-        Γ.lookupDomain d = .some dt →
-        ExprOfTy Γ e dt.idTy →
-        ExprOfTy Γ (.obj d e) (.domain d)
 
   | unop : ∀ {Γ op e t₁ t₂},
         unaryTy op = (t₁, t₂) →
@@ -79,6 +74,22 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
   | undefined : ∀ {Γ e t},
         ExprOfTy Γ e t →
         ExprOfTy Γ (.undefined e) .bool
+
+inductive DomainOfTy : Context → Domain → DomainName → Prop where
+  | ident : ∀ {Γ x d},
+      Γ.lookupDomainIdent x = .some d →
+      DomainOfTy Γ (.ident x) d
+
+  | obj : ∀ {Γ d dt e},
+      Γ.lookupDomain d = .some dt →
+      ExprOfTy Γ e dt.idTy →
+      DomainOfTy Γ (.obj d e) d
+
+  | field : ∀ {Γ d d' dt e l},
+      DomainOfTy Γ e d →
+      Γ.lookupDomain d = .some dt →
+      dt.inputField.lookup l = .some (.domain d') →
+      DomainOfTy Γ (.field e l) d'
 
 inductive TupleOfTy : Context → List Expr → List Ty → Prop where
   | nil : ∀ {Γ}, TupleOfTy Γ [] []
