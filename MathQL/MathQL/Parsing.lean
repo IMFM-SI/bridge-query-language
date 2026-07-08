@@ -26,7 +26,7 @@ private partial def chainl1Core {α} (p : Parser α) (op : Parser (α → α →
 private def chainl1 {α} (p : Parser α) (op : Parser (α → α → α)) : Parser α := do
   chainl1Core p op (← p)
 
-private def isIdentStart (c : Char) : Bool := c.isAlpha || c == '_'
+private def isIdentStart (c : Char) : Bool := c.isAlpha
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'
 
 private def keywords : List String :=
@@ -59,12 +59,18 @@ private def intLit : Parser Int := do
   ws
   return (Int.ofNat n)
 
+/-- The rest of a string literal after an opening quote: characters up to a
+    quote, where a doubled quote `''` stands for an embedded quote. -/
+private partial def stringLitRest (acc : String) : Parser String := do
+  let s ← manyChars (satisfy (· != '\''))
+  skipChar '\''
+  (do skipChar '\''; stringLitRest (acc ++ s ++ "'")) <|> (do ws; return acc ++ s)
+
+/-- A string literal per the SQL standard: single-quoted, an embedded quote
+    written by doubling, as in `'it''s'`. No backslash escapes. -/
 private def stringLit : Parser String := do
-  skipChar '"'
-  let s ← manyChars (satisfy (· != '"'))
-  skipChar '"'
-  ws
-  return s
+  skipChar '\''
+  stringLitRest ""
 
 private def compareOp : Parser ComparisonOp :=
   (tok "≤" *> pure .le) <|> (tok "<=" *> pure .le) <|>

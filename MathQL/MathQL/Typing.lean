@@ -178,16 +178,30 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkOutput (Γ : Context) : List (String × String) → Result (List (Ident × Option Label))
+def checkOutput (Γ : Context) : List Input.OutputItem → Result (List OutputItem)
 | [] => return []
-| (x', l') :: xls => do
-  let x := .ident x'
-  let l := .label l'
+| .ident x' :: items => do
+  let x := Ident.ident x'
+  match Γ.lookupIdent x with
+  | .some (.domain _) =>
+    let items ← checkOutput Γ items
+    return .ident x :: items
+  | _ => throw s!"{x'} is not a domain variable"
+| .field x' l' :: items => do
+  let x := Ident.ident x'
+  let l := Label.label l'
   match Γ.isOutputField x l with
   | .none | .some false => throw s!"{x'} does not have output field {l'}"
-  | .some true => do
-    let xls ← checkOutput Γ xls
-    return ((x, l) :: xls)
+  | .some true =>
+    let items ← checkOutput Γ items
+    return .field x l :: items
+| .id x' :: items => do
+  let x := Ident.ident x'
+  match Γ.lookupIdent x with
+  | .some (.domain _) =>
+    let items ← checkOutput Γ items
+    return .id x :: items
+  | _ => throw s!"{x'} is not a domain variable"
 
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
     List (String × String) → Result (Context × List (Ident × DomainName))
@@ -209,7 +223,7 @@ def checkOrder (Γ : Context) :
 
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))
-  let output ← checkOutput Γ (q.output.map fun o => (o.var, o.field))
+  let output ← checkOutput Γ q.output
   let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
   let order ← checkOrder Γ (q.order.getD [])
   return { vars, condition, output, limit := q.limit, order }

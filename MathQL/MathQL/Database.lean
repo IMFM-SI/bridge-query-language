@@ -33,6 +33,8 @@ structure Domain extends Schema where
   Obj : Type
   /-- Convert the object as a whole to Json-/
   toJson : Obj → Lean.Json
+  /-- Render the primary key of a decoded object -/
+  idJson : Obj → Lean.Json
   /-- Reads the projected cells into an object -/
   decode : SQLite.RowReader Obj
   /-- Output fields -/
@@ -58,7 +60,7 @@ def Database.getDomainContext (D : Database) : DomainContext :=
 
 def Database.getContext (D : Database) : Context where
   domain := D.getDomainContext
-  var := D.const.map fun (x, t, _) => (x, .const t)
+  ident := D.const.map fun (x, t, _) => (x, t)
 
 /-- A JSON description of the database for the `describe` request: an overview, each
 domain with its doc and its queryable fields (label, type, doc) and output fields,

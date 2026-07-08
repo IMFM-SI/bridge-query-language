@@ -8,30 +8,31 @@ JSON array of result rows. -/
 
 namespace MathQL
 
-/-- Read one row's requested output values, keyed by `(variable, label?)`. Every bound
+/-- Read one row's requested output values, keyed by output item. Every bound
 variable is decoded in turn (the column cursor threads across the join), but only the
-entries named in `q.output` are rendered: the whole object (`none`, via `toJson`) or a
-single field (`some l`). -/
+entries named in `q.output` are rendered: the whole object (via `toJson`), a single
+field (via `outputField`), or the primary key (via `idJson`). -/
 def rowFields (q : Query) (vars : List (Ident × Domain)) :
-    SQLite.RowReader (List ((Ident × Option Label) × Lean.Json)) := do
+    SQLite.RowReader (List (OutputItem × Lean.Json)) := do
   let perVar ← vars.mapM fun (x, dom) => do
     let o ← dom.decode
-    return q.output.filterMap fun (y, ol) =>
-      if y == x then
-        match ol with
-        | none   => some ((x, none), dom.toJson o)
-        | some l => (dom.outputField.lookup l).map fun f => ((x, some l), f o)
-      else none
+    return q.output.filterMap fun item =>
+      match item with
+      | .ident y => if y == x then some (item, dom.toJson o) else none
+      | .field y l => if y == x then (dom.outputField.lookup l).map fun f => (item, f o) else none
+      | .id y => if y == x then some (item, dom.idJson o) else none
   return perVar.flatten
 
-/-- Assemble a row's JSON object in the query's output order. A bare variable
-(`none`) is keyed by the variable name; a field by `variable.label`. -/
-def rowObject (q : Query) (fields : List ((Ident × Option Label) × Lean.Json)) : Lean.Json :=
-  Lean.Json.mkObj <| q.output.map fun (x, ol) =>
-    let key := match ol with
-      | none => x.name
-      | some l => s!"{x.name}.{l.name}"
-    (key, (fields.lookup (x, ol)).getD Lean.Json.null)
+/-- Assemble a row's JSON object in the query's output order. A whole object is
+keyed by the variable name, a field by `variable.label`, a primary key by
+`id(variable)`. -/
+def rowObject (q : Query) (fields : List (OutputItem × Lean.Json)) : Lean.Json :=
+  Lean.Json.mkObj <| q.output.map fun item =>
+    let key := match item with
+      | .ident x => x.name
+      | .field x l => s!"{x.name}.{l.name}"
+      | .id x => s!"id({x.name})"
+    (key, (fields.lookup item).getD Lean.Json.null)
 
 /-- Step through every result row, decoding each into its output object. -/
 partial def collectRows (stmt : SQLite.Stmt) (vars : List (Ident × Domain)) (q : Query)
