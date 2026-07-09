@@ -185,16 +185,14 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkOutput (Γ : Context) (acc : List (Ident × Ty × Expr)):
-  List (String × Input.Expr) →
-  Result (Context × List (Ident × Ty × Expr))
-
-| [] => return (Γ, acc.reverse)
-
-| (x', e) :: xes => do
-  let x := Ident.ident x'
-  let ⟨t, e, _⟩ ← infer Γ e
-  checkOutput (Γ.extendIdent x t) ((x, t, e) :: acc) xes
+/-- Check the output fields, each in `Γ`: one output may not refer to another. -/
+def checkOutput (Γ : Context) :
+    List (String × Input.Expr) → Result (List (Ident × Ty × Expr))
+  | [] => return []
+  | (x', e) :: xes => do
+    let ⟨t, e, _⟩ ← infer Γ e
+    let rest ← checkOutput Γ xes
+    return (.ident x', t, e) :: rest
 
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
     List (String × String) → Result (Context × List (Ident × DomainName))
@@ -217,7 +215,8 @@ def checkOrder (Γ : Context) :
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))
   let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
-  let ⟨Δ, output⟩ ← checkOutput Γ [] q.output
+  let output ← checkOutput Γ q.output
+  let Δ := output.foldl (fun Δ (x, t, _) => Δ.extendIdent x t) Γ
   let order ← checkOrder Δ (q.order.getD [])
   return { vars, condition, output, limit := q.limit, order }
 

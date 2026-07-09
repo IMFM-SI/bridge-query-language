@@ -254,13 +254,15 @@ def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
                (D.const.map fun (x, _, s) => (x, .const s))
       schema := D.domain
     }
+  let Δ : SqlCtx :=
+    { Γ with ident := (q.output.map fun (x, _, _) => (x, .const (.ref x.name))) ++ Γ.ident }
   let act : CompileM (List (SQL.Expr × String) × SQL.Expr × List (SQL.Expr × Direction)) := do
     let output ← q.output.mapM fun (x, _, e) => do
       let s ← compileExpr Γ e
       return (s, x.name)
     let cond ← compileExpr Γ q.condition
     let order ← q.order.mapM fun ((e, dir) : Expr × Direction) => do
-      let s ← compileExpr Γ e
+      let s ← compileExpr Δ e
       return (s, dir)
     return (output, cond, order)
   match act.run { taken := q.vars.map fun (x, _) => .alias x.name, joins := [], hoisted := [] } with

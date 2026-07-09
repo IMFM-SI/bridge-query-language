@@ -5,8 +5,9 @@ import json
 SUMMARY = """## Writing queries
 `query` takes: domains (e.g. [["g", "Graph"]]); output, a mapping from each result
 column name to the expression it returns (e.g. {"g6": "id(g)", "edges":
-"g.num_edges"}); and optional condition, order ([expression, "asc"|"desc"] pairs),
-and limit. Expressions use fields (g.num_vertices), id(x) for an object's primary
+"g.num_edges"}); and optional condition, order ([expression, "asc"|"desc"] pairs,
+which may refer to the output column names), and limit. Expressions use fields
+(g.num_vertices), id(x) for an object's primary
 key, literals, arithmetic (+ - *), comparisons (== != < <= > >=), booleans
 (&& || !), and defined/undefined for absence; a comparison needs both sides the
 same scalar type (int/bool/string). String literals are single-quoted ('text', a

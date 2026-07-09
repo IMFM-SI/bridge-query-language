@@ -21,11 +21,13 @@ A query is a JSON object:
   domain; several bindings form a join.
 - `output` (required) maps each result column name (a plain identifier) to the
   expression whose value that column returns; the expressions use the same
-  grammar as `condition`.
+  grammar as `condition`. The output expressions are independent of one
+  another: one may not refer to another's column name.
 - `condition` (optional, default `true`) restricts the result to the objects, or
   tuples of objects, that satisfy it; it must have type `bool`.
 - `order` (optional) sorts the result by one or more scalar expressions, each
-  ascending or descending.
+  ascending or descending; an order expression may refer to the output columns
+  by name.
 - `limit` (optional) bounds the number of rows returned.
 
 ## Domains

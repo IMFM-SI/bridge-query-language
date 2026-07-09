@@ -5,6 +5,7 @@ namespace MathQL.SQL
 /-- SQL scalar/boolean expressions. -/
 inductive Expr where
   | col       : (table column : String) → Expr
+  | ref       : String → Expr                  -- an output-column alias; ORDER BY only
   | int       : Int → Expr
   | str       : String → Expr
   | bool      : Bool → Expr
@@ -46,6 +47,7 @@ mutual
 (single quotes, `''` escaping an embedded quote). -/
 def renderExpr : Expr → String
   | .col table column => s!"{table}.{column}"
+  | .ref name         => name
   | .int n            => toString n
   | .bool b           => if b then "1" else "0"
   | .str s            => "'" ++ s.replace "'" "''" ++ "'"
