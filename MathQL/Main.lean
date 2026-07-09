@@ -1,11 +1,12 @@
 import MathQL.GraphsSmallDB
+import MathQL.SymObSmallDB
 import SQLite
 
 /-! The `mathql` executable: a persistent query engine driven over stdin/stdout.
 
 It opens the database once, then reads one JSON request per line and writes one
 JSON response per line: `{"rows": …}` on success, `{"error": …}` on failure. This
-is the transport the Python MCP server (`python/mathql.py`) speaks to. -/
+is the transport the Python MCP server (`python/src/mathql_mcp`) speaks to. -/
 
 open MathQL
 
@@ -39,9 +40,20 @@ partial def loop (db : SQLite) (database : Database) : IO Unit := do
       stdout.flush
       loop db database
 
-/-- Open the database (path from the first argument, defaulting to the bundled
-`graphs-small.db`) and serve requests. -/
+/-- The known databases: each name with its `Database` and its default file path. -/
+def databases : List (String × Database × String) :=
+  [ ("graphs-small", GraphsSmallDB.database, "../data/graphs-small.db"),
+    ("sym-ob-small", SymObSmallDB.database, "../data/sym-ob-small.db") ]
+
+/-- Open the database (named by the first argument, its file path optionally
+overridden by the second) and serve requests. -/
 def main (args : List String) : IO Unit := do
-  let dbPath := args.head?.getD "../data/graphs-small.db"
-  let db ← SQLite.openWith dbPath .readonly
-  loop db GraphsSmallDB.database
+  let name := (args[0]?).getD "graphs-small"
+  match databases.find? (fun (n, _, _) => n == name) with
+  | none =>
+    IO.eprintln s!"unknown database '{name}'; available: \
+      {", ".intercalate (databases.map (·.1))}"
+  | some (_, database, defaultPath) =>
+    let path := (args[1]?).getD defaultPath
+    let db ← SQLite.openWith path .readonly
+    loop db database
