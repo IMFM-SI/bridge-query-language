@@ -76,7 +76,7 @@ def compiles (j : Lean.Json) : Bool :=
 -- `id` is an ordinary identifier: an output column named `id` is orderable.
 #guard compiles (jqOrder [("id", "g.n")] "true" [("id", "desc")])
 
--- `id` is the only known function.
+-- `foo(3)` is not syntax; only `id(e)` is.
 #guard !elaborates (jq [("n", "foo(3)")] "true")
 
 -- The alias renders bare (but quoted) in ORDER BY.
