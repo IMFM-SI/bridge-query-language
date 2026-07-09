@@ -5,16 +5,9 @@ import MathQL.SQL
 import MathQL.Database
 import MathQL.Query
 
-/-! Compilation of a type-checked query to a SQL query.
-
-A `Domain` expression compiles to a row of the domain's table, designated by a
-table alias: a domain variable is an alias of the `FROM` clause, an `obj` or a
-domain-valued field is hoisted to a `LEFT JOIN`, and the mapping from hoisted
-expressions to aliases shares one join between repeated occurrences. A scalar
-`Expr` compiles to a `SQL.Expr`; it reaches a row only through `id` and field
-projection. The primary key has three roles that coincide only for a
-single-column key: the value of `id`, the join's `ON` condition, and the
-row-presence test behind `defined`/`undefined`. -/
+/-! Compilation of a type-checked query to SQL: scalar expressions compile to SQL
+expressions, and domain expressions compile to aliased table rows, hoisted into
+shared `LEFT JOIN`s. -/
 
 namespace MathQL
 
