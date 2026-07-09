@@ -116,7 +116,6 @@ private partial def mulExpr : Parser Input.Expr :=
 private partial def unaryExpr : Parser Input.Expr :=
   (do keyword "defined"; let e ← unaryExpr; return .defined e) <|>
   (do keyword "undefined"; let e ← unaryExpr; return .undefined e) <|>
-  (do keyword "id"; let e ← unaryExpr; return .id e) <|>
   (do (tok "¬" <|> tok "!"); let e ← unaryExpr; return .unop UnaryOp.not e) <|>
   (do tok "-"; let e ← unaryExpr; return .unop UnaryOp.neg e) <|>
   postfixExpr
@@ -141,10 +140,14 @@ private partial def atomExpr : Parser Input.Expr :=
   parenOrTupleExpr <|>
   identOrObjExpr
 
-/-- A bare identifier `x`, or an object `D[e₁, …, eₙ]`. -/
+/-- A bare identifier `x`, an object `D[e₁, …, eₙ]`, or a function call `f(e)`;
+    the one known function is `id`. -/
 private partial def identOrObjExpr : Parser Input.Expr := do
   let x ← ident
-  (do tok "["; let es ← sepBy expr (tok ","); tok "]"; return .obj x es) <|> pure (.ident x)
+  (do tok "["; let es ← sepBy expr (tok ","); tok "]"; return .obj x es) <|>
+  (do tok "("; let e ← expr; tok ")";
+      if x == "id" then return .id e else fail s!"unknown function '{x}'") <|>
+  pure (.ident x)
 
 private partial def parenOrTupleExpr : Parser Input.Expr := do
   tok "("

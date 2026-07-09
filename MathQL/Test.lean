@@ -73,6 +73,12 @@ def compiles (j : Lean.Json) : Bool :=
 #guard compiles (jqOrder [("m", "g.n * g.n")] "g.planar" [("m", "desc")])
 #guard compiles (jqOrder [("m", "g.n")] "true" [("m + 1", "asc")])
 
+-- `id` is an ordinary identifier: an output column named `id` is orderable.
+#guard compiles (jqOrder [("id", "g.n")] "true" [("id", "desc")])
+
+-- `id` is the only known function.
+#guard !elaborates (jq [("n", "foo(3)")] "true")
+
 -- The alias renders bare (but quoted) in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
   | .ok s => s.endsWith "ORDER BY \"m\" DESC"

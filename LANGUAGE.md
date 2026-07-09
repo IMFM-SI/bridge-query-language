@@ -57,7 +57,7 @@ The value expressions are:
 ```
 e ::= n | 's' | true | false                          -- literals
     | o.ℓ                                              -- an input field of an object
-    | id o                                             -- an object's primary key
+    | id(o)                                            -- an object's primary key
     | c                                                -- a named constant
     | - e | e + e | e - e | e * e                      -- arithmetic (Int)
     | ¬ e | e ∧ e | e ∨ e                              -- logic (Bool)
@@ -88,7 +88,7 @@ implements the three modes against the declarative rules in `Rules.lean`:
 - **input field** — if `o ⇒ D` and `ℓ` is an input field of `D` with type `τ`, then
   `o.ℓ ⇒ τ`.
 - **id** — if `o ⇒ D` and `D`'s primary key has types `τ₁, …, τₙ`, then
-  `id o ⇒ τ₁ × ⋯ × τₙ`; a single-column key elides the product.
+  `id(o) ⇒ τ₁ × ⋯ × τₙ`; a single-column key elides the product.
 - **constant** — if the database declares `c : τ`, then `c ⇒ τ`.
 - **arithmetic** — `- e ⇒ Int` with `e ⇐ Int`; `e₁ ⊙ e₂ ⇒ Int` for `⊙ ∈ {+,-,*}`,
   both `⇐ Int`.
@@ -142,7 +142,7 @@ absence is observed only through `defined e` and `undefined e`, which compile to
 `IS NOT NULL` / `IS NULL`. A comparison against an absent value is neither true nor
 false (SQL's three-valued logic), so such a row is dropped from the result. An
 object can be absent too — a domain field or a `D[…]` that matches no row — and
-`defined (id o)` / `undefined (id o)` test the row's presence.
+`defined id(o)` / `undefined id(o)` test the row's presence.
 
 ## Realization
 
