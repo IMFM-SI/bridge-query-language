@@ -31,19 +31,19 @@ structure Context where
 def Context.getIdent (Γ : Context) (x : Ident) : Result Ty :=
   match Γ.ident.lookup x with
   | .some (.ty t) => return t
-  | .some (.domain _) => throw s!"{repr x} is a domain but a constant was expected"
-  | .none => throw s!"unknown identifier {repr x}"
+  | .some (.domain _) => throw s!"{x} is a domain but a constant was expected"
+  | .none => throw s!"unknown identifier {x}"
 
 def Context.getDomainIdent (Γ : Context) (x : Ident) : Result DomainName :=
   match Γ.ident.lookup x with
   | .some (.domain d) => return d
-  | .some (.ty _) => throw s!"{repr x} is a constant but a domain was expected"
-  | .none => throw s!"unknown domain name {repr x}"
+  | .some (.ty _) => throw s!"{x} is a constant but a domain was expected"
+  | .none => throw s!"unknown domain name {x}"
 
 def Context.getDomain (Γ : Context) (d : DomainName) : Result DomainTy :=
   match Γ.domain.lookup d with
   | .some dt => return dt
-  | .none => throw s!"unknown domain {repr d}"
+  | .none => throw s!"unknown domain {d}"
 
 def Context.getPrimaryKey (Γ : Context) (d : DomainName) : Result (List (Label × Ty)) := do
   let dt ← Γ.getDomain d
@@ -57,13 +57,13 @@ def Context.getInputField (Γ : Context) (d : DomainName) (l : Label) : Result I
   let td ← Γ.getDomain d
   match td.inputField.lookup l with
   | .some f => return f
-  | .none => throw s!"domain {repr d} does not have a field {repr l}"
+  | .none => throw s!"domain {d} does not have a field {l}"
 
 def Context.getDomainField (Γ : Context) (d : DomainName) (l : Label) : Result DomainName := do
   let td ← Γ.getDomain d
   match td.domainField.lookup l with
   | .some dn => return dn
-  | .none => throw s!"domain {repr d} does not have a field {repr l}"
+  | .none => throw s!"domain {d} does not have a field {l}"
 
 def Context.getInputFieldTy (Γ : Context) (d : DomainName) (l : Label) : Result Ty := do
   let ft ← Γ.getInputField d l

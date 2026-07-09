@@ -40,7 +40,7 @@ def Schema.primaryColumns (sch : Schema) : List String :=
 def Schema.getForeignKey (sch : Schema) (l : Label): Result ForeignKey :=
   match sch.foreignKey.lookup l with
   | .some fk => return fk
-  | .none => throw s!"uknown foreign key {repr l}"
+  | .none => throw s!"unknown foreign key {l}"
 
 structure Database where
   /-- A human overview of what the database contains -/

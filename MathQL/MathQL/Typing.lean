@@ -19,7 +19,7 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
     | .list t => do
       let ⟨es, hes⟩ ← checkList Γ t es
       return ⟨.list es, .list hes⟩
-    | _ => throw s!"expected {repr t}, but got a list"
+    | _ => throw s!"expected {t}, but got a list"
 
   | .ite e₁ e₂ e₃ => do
     let ⟨c, hc⟩ ← check Γ e₁ .bool
@@ -32,12 +32,12 @@ def check (Γ : Context) (e : Input.Expr) (t : Ty) : Result { e' : Expr // ExprO
     | .prod ts => do
       let ⟨es', h⟩ ← checkTuple Γ es ts
       return ⟨.tuple es', .tuple h⟩
-    | _ => throw s!"expected {repr t}, but got a tuple"
+    | _ => throw s!"expected {t}, but got a tuple"
 
   | e => do
     let ⟨t', e', h⟩ ← infer Γ e
     if heq : t' == t then .ok ⟨e', Ty.eq_of_beq t' t heq ▸ h⟩
-    else throw s!"type mismatch: expected {repr t}, but got {repr t'}"
+    else throw s!"type mismatch: expected {t}, but got {t'}"
 
 /-- Infer a type for `e` in context `Γ`, elaborating it to a typed expression.
     Inferring forms are handled here; checking-only forms are an error. -/

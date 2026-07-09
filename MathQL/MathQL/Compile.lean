@@ -47,18 +47,18 @@ abbrev CompileM := StateT CompileState Result
 def SqlCtx.getIdent (Γ : SqlCtx) (x : Ident) : CompileM ContextEntry :=
   match Γ.ident.lookup x with
   | some ce => return ce
-  | none => throw s!"unknown identifier {repr x}"
+  | none => throw s!"unknown identifier {x}"
 
 def SqlCtx.getSchema (Γ : SqlCtx) (dn : DomainName) : CompileM Schema :=
   match Γ.schema.lookup dn with
-  | none => throw s!"unknown domain name {repr dn}"
+  | none => throw s!"unknown domain name {dn}"
   | some sch => return sch
 
 def SqlCtx.getColumn (Γ : SqlCtx) (dn : DomainName) (l : Label) : CompileM Column := do
   let sch ← Γ.getSchema dn
   match sch.column.lookup l with
   | some c => return c
-  | none => throw s!"unknown column {repr l} in schema {repr dn}"
+  | none => throw s!"unknown column {l} in schema {dn}"
 
 def lookupHoist (d : Domain) : CompileM (Option (Alias × DomainName)) := do
   let st ← get
@@ -115,7 +115,7 @@ def compileDomain (Γ : SqlCtx) (d : Domain) : CompileM (Alias × DomainName) :=
     let ce ← Γ.getIdent x
     match ce with
     | .domain d => return (.alias x.name, d)
-    | .const _  => throw s!"{repr x} is not a domain variable"
+    | .const _  => throw s!"{x} is not a domain variable"
 
   | .obj dn es =>
     match (← lookupHoist d) with
@@ -154,8 +154,8 @@ def compileExpr (Γ : SqlCtx) (e : Expr) : CompileM SQL.Expr := do
   | .ident x =>
     match Γ.ident.lookup x with
     | some (.const s) => return s
-    | some (.domain _) => throw s!"{repr x} is a domain variable, not a value"
-    | none => throw s!"unknown constant {repr x}"
+    | some (.domain _) => throw s!"{x} is a domain variable, not a value"
+    | none => throw s!"unknown constant {x}"
 
   | .id d =>
     let (alias, dn) ← compileDomain Γ d
@@ -241,7 +241,7 @@ def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
   let froms ← q.vars.mapM fun (x, n) =>
     match D.domain.lookup n with
     | some dom => pure (dom.table, x.name)
-    | none => throw s!"unknown domain {repr n}"
+    | none => throw s!"unknown domain {n}"
   let Γ : SqlCtx :=
     { ident := (q.vars.map fun (x, n) => (x, .domain n)) ++
                (D.const.map fun (x, _, s) => (x, .const s))

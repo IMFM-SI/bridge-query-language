@@ -84,6 +84,8 @@ def Ty.renderList : List Ty → String
 
 end
 
+instance : ToString Ty := ⟨Ty.render⟩
+
 /-- Smart product that elides `.prod` when a single type is given. -/
 def Ty.prod' : List Ty → Ty
 | [t] => t
