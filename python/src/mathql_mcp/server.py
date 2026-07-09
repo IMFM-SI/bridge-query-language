@@ -17,19 +17,35 @@ MATHQL_DIR = ROOT / "MathQL"
 GRAMMAR_PATH = ROOT / "docs" / "query-grammar.md"
 
 DATABASES = [
-    ("graphs-small", ROOT / "data" / "graphs-small.db"),
-    ("sym-ob-small", ROOT / "data" / "sym-ob-small.db"),
+    (
+        "graphs-small",
+        ROOT / "data" / "graphs-small.db",
+        "All non-isomorphic simple graphs on up to 8 vertices, annotated with invariants.",
+        "part of the repository",
+    ),
+    (
+        "sym-ob-small",
+        ROOT / "data" / "sym-ob-small.db",
+        "Regular rank-4 maniplexes with their flag graphs, skeleta, and canonical labelings.",
+        "download https://www.andrej.com/tmp/sym-ob-small.db into data/",
+    ),
 ]
 
 
 def build() -> FastMCP:
     """Build the FastMCP app: one engine per available database, tools registered."""
     engines = {
-        name: Engine(MATHQL_DIR, name, path) for name, path in DATABASES if path.exists()
+        name: Engine(MATHQL_DIR, name, path)
+        for name, path, _, _ in DATABASES
+        if path.exists()
     }
     schemas = {name: engine.request({"describe": True}) for name, engine in engines.items()}
-    app = FastMCP("mathql", instructions=build_instructions(schemas))
-    query_tools.register(app, engines, schemas, GRAMMAR_PATH)
+    entries = [
+        (name, overview, hint, name in engines)
+        for name, _, overview, hint in DATABASES
+    ]
+    app = FastMCP("mathql", instructions=build_instructions(entries, schemas))
+    query_tools.register(app, engines, schemas, entries, GRAMMAR_PATH)
     graph_tools.register(app)
     return app
 

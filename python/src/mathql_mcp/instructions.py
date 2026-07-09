@@ -46,16 +46,20 @@ def _database_section(name: str, schema: dict) -> list[str]:
     return lines
 
 
-def build_instructions(schemas: dict) -> str:
+def build_instructions(entries: list[tuple[str, str, str, bool]], schemas: dict) -> str:
     """A natural-language orientation for the model, built from the databases' schemas."""
     default = next(iter(schemas), "")
+    names = ", ".join(name for name, *_ in entries)
     lines = [
-        f"Databases served: {', '.join(schemas)}. `query` and `describe` take a "
-        f"`database` parameter selecting one (default: {default}); `describe` with "
-        "no arguments lists them.",
+        f"Databases: {names}. `query` and `describe` take a `database` parameter "
+        f"selecting one (default: {default}); `describe` with no arguments lists them.",
         "",
     ]
-    for name, schema in schemas.items():
-        lines += _database_section(name, schema) + [""]
+    for name, overview, hint, available in entries:
+        if available:
+            lines += _database_section(name, schemas[name]) + [""]
+        else:
+            lines += [f"## Database `{name}` (not available)", overview,
+                      f"To enable: {hint}.", ""]
     lines += [SUMMARY, "", GRAPH_TOOLS]
     return "\n".join(lines)
