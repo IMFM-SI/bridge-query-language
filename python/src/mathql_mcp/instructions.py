@@ -6,13 +6,13 @@ SUMMARY = """## Writing queries
 `query` takes: domains (e.g. [["g", "Graph"]]); output, a mapping from each result
 column name to the expression it returns (e.g. {"g6": "id(g)", "edges":
 "g.num_edges"}); and optional condition, order ([expression, "asc"|"desc"] pairs,
-which may refer to the output column names), and limit. Expressions use fields
-(g.num_vertices), id(x) for an object's primary
-key, literals, arithmetic (+ - *), comparisons (== != < <= > >=), booleans
-(&& || !), and defined/undefined for absence; a comparison needs both sides the
-same scalar type (int/bool/string). String literals are single-quoted ('text', a
-literal quote doubled as ''). ASCII operators are preferred; ∧ ∨ ¬ ≤ ≥ ≠ also work.
-Call the `grammar` tool (or read the mathql://grammar resource) for the full grammar."""
+which may refer to the output column names), limit, and database. Expressions use
+fields (g.num_vertices), id(x) for an object's primary key, literals, arithmetic
+(+ - *), comparisons (== != < <= > >=), booleans (&& || !), and defined/undefined
+for absence; a comparison needs both sides the same type. String literals are
+single-quoted ('text', a literal quote doubled as ''). ASCII operators are
+preferred; ∧ ∨ ¬ ≤ ≥ ≠ also work. Call the `grammar` tool (or read the
+mathql://grammar resource) for the full grammar."""
 
 GRAPH_TOOLS = """## Inspecting a graph
 A query returns a graph as its `graph6` string, which is opaque on its own. The graph
@@ -24,9 +24,9 @@ tools decode it (vertices are numbered 0..n-1):
 - `coloring` — a proper coloring (greedy; may exceed the chromatic number)."""
 
 
-def build_instructions(schema: dict) -> str:
-    """A natural-language orientation for the model, built from the schema."""
-    lines = [schema.get("overview", ""), "", "## Domains and fields"]
+def _database_section(name: str, schema: dict) -> list[str]:
+    """The instruction lines for one database: overview, domains, two examples."""
+    lines = [f"## Database `{name}`", schema.get("overview", ""), "", "### Domains and fields"]
     for domain in schema.get("domains", []):
         lines.append(f"- {domain['name']}: {domain.get('doc', '')}")
         input_fields = domain.get("inputFields", [])
@@ -40,7 +40,22 @@ def build_instructions(schema: dict) -> str:
                          "yielding an object you can project or take id() of:")
             for field in domain_fields:
                 lines.append(f"    {field['label']} → {field['domain']} — {field.get('doc', '')}")
-    lines += ["", SUMMARY, "", GRAPH_TOOLS, "", "## Examples (call `describe` for the full list)"]
-    for example in schema.get("examples", [])[:3]:
+    lines += ["", "### Examples (call `describe` for the full list)"]
+    for example in schema.get("examples", [])[:2]:
         lines.append(f"- {example['note']}: {json.dumps(example['query'])}")
+    return lines
+
+
+def build_instructions(schemas: dict) -> str:
+    """A natural-language orientation for the model, built from the databases' schemas."""
+    default = next(iter(schemas), "")
+    lines = [
+        f"Databases served: {', '.join(schemas)}. `query` and `describe` take a "
+        f"`database` parameter selecting one (default: {default}); `describe` with "
+        "no arguments lists them.",
+        "",
+    ]
+    for name, schema in schemas.items():
+        lines += _database_section(name, schema) + [""]
+    lines += [SUMMARY, "", GRAPH_TOOLS]
     return "\n".join(lines)

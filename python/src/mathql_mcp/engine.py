@@ -16,16 +16,16 @@ from typing import Optional
 class Engine:
     """A persistent `mathql` subprocess, addressed one request at a time.
 
-    By default the engine runs `lake exe mathql <db>` from the Lean package
+    By default the engine runs `lake exe mathql <name> <db>` from the Lean package
     directory. Setting `MATHQL_BIN` runs that prebuilt binary directly instead.
     """
 
-    def __init__(self, mathql_dir: Path, db_path: Path) -> None:
+    def __init__(self, mathql_dir: Path, name: str, db_path: Path) -> None:
         binary = os.environ.get("MATHQL_BIN")
         if binary is not None:
-            self.cmd = [binary, str(db_path)]
+            self.cmd = [binary, name, str(db_path)]
         else:
-            self.cmd = ["lake", "exe", "mathql", str(db_path)]
+            self.cmd = ["lake", "exe", "mathql", name, str(db_path)]
         self.cwd = str(mathql_dir)
         self.lock = threading.Lock()
         self.proc: Optional[subprocess.Popen] = None
