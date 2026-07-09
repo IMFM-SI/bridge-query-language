@@ -38,12 +38,26 @@ a query.
 
 ## Expressions
 
-An expression denotes a value computed from the bound objects. A variable is not an
-expression by itself; a variable `x` appears only in a field projection `x.ℓ`.
+An expression denotes either a *value* — a scalar, list, or tuple — or an *object*
+of some domain. The object-denoting expressions are:
 
 ```
-e ::= n | "s" | true | false                          -- literals
-    | x.ℓ                                              -- field projection
+o ::= x                                                -- a bound variable
+    | o.ℓ                                              -- a domain field
+    | D[e₁, …, eₙ]                                      -- the object with the given key
+```
+
+A bound variable denotes the object it ranges over; a *domain field* `o.ℓ` follows
+a link to an object of another domain; and `D[e₁, …, eₙ]` denotes the object of `D`
+whose primary key is `(e₁, …, eₙ)`. An object is not a value: it appears only as
+the head of a projection or under `id`.
+
+The value expressions are:
+
+```
+e ::= n | 's' | true | false                          -- literals
+    | o.ℓ                                              -- an input field of an object
+    | id o                                             -- an object's primary key
     | c                                                -- a named constant
     | - e | e + e | e - e | e * e                      -- arithmetic (Int)
     | ¬ e | e ∧ e | e ∨ e                              -- logic (Bool)
@@ -54,17 +68,27 @@ e ::= n | "s" | true | false                          -- literals
     | [] | [e₁, …, eₙ]                                  -- list
 ```
 
+String literals are single-quoted, with a literal quote written doubled (`'it''s'`).
 ASCII synonyms: `∧`=`&&`, `∨`=`||`, `¬`=`!`, `≤`=`<=`, `≥`=`>=`, `≠`=`!=`, `=`=`==`.
 
 ## Typing
 
 The judgement is bidirectional: synthesis `Γ ⊢ e ⇒ τ` computes a type, checking
-`Γ ⊢ e ⇐ τ` checks against a given one. The context `Γ` records the bound variables
-(each with its domain) and the database's constants. `Typing.lean` implements both
-modes against the declarative rules in `Rules.lean`:
+`Γ ⊢ e ⇐ τ` checks against a given one; a companion judgement `Γ ⊢ o ⇒ D` assigns
+each object-denoting expression its domain. The context `Γ` records the bound
+variables (each with its domain) and the database's constants. `Typing.lean`
+implements the three modes against the declarative rules in `Rules.lean`:
 
-- **literals** — `n ⇒ Int`, `"s" ⇒ String`, `true`/`false ⇒ Bool`.
-- **field** — if `ℓ` is a field of `x`'s domain with type `τ`, then `x.ℓ ⇒ τ`.
+- **literals** — `n ⇒ Int`, `'s' ⇒ String`, `true`/`false ⇒ Bool`.
+- **variable** — if `x` is bound to domain `D`, then `x ⇒ D`.
+- **domain field** — if `o ⇒ D` and `ℓ` is a domain field of `D` linking to `D'`,
+  then `o.ℓ ⇒ D'`.
+- **object by key** — `D[e₁, …, eₙ] ⇒ D` when the `eᵢ` check against the types of
+  `D`'s primary key.
+- **input field** — if `o ⇒ D` and `ℓ` is an input field of `D` with type `τ`, then
+  `o.ℓ ⇒ τ`.
+- **id** — if `o ⇒ D` and `D`'s primary key has types `τ₁, …, τₙ`, then
+  `id o ⇒ τ₁ × ⋯ × τₙ`; a single-column key elides the product.
 - **constant** — if the database declares `c : τ`, then `c ⇒ τ`.
 - **arithmetic** — `- e ⇒ Int` with `e ⇐ Int`; `e₁ ⊙ e₂ ⇒ Int` for `⊙ ∈ {+,-,*}`,
   both `⇐ Int`.
@@ -90,7 +114,7 @@ A query is the top-level form, submitted as JSON:
 
 ```
 { "domains":   [[x, D], …],          (required)
-  "output":    [item, …],            (required)
+  "output":    { name: e, … },       (required)
   "condition": e,                    (optional, default true)
   "order":     [[e, dir], …],        (optional; dir is "asc" or "desc")
   "limit":     n }                   (optional)
@@ -98,16 +122,17 @@ A query is the top-level form, submitted as JSON:
 
 - `domains` binds variables `x₁ ∈ D₁, …`; with more than one binding the query
   ranges over the product of the domains (a join).
-- `output` lists what to return; an item is a variable `x` (the whole object) or a
-  field projection `x.ℓ`.
+- `output` maps each result column name (a plain identifier) to the expression
+  whose value that column returns. The output expressions are independent of one
+  another: one may not refer to another's column name.
 - `condition` is an expression of type `Bool` over the bound variables.
 - `order` sorts by expressions, each ascending or descending; an order expression
-  must be a scalar.
+  may refer to the output columns by name.
 - `limit` caps the number of rows.
 
 A query returns a list of rows — one per combination of objects satisfying the
 condition, in the requested order, capped by `limit`. Each row is a JSON object
-keyed by the output items.
+keyed by the output column names.
 
 ## Absence
 
@@ -115,32 +140,34 @@ A possibly-absent invariant keeps its scalar type — `diameter : Int` — and m
 absent for a given object (a `NULL` column). There is no option type and no `match`;
 absence is observed only through `defined e` and `undefined e`, which compile to SQL
 `IS NOT NULL` / `IS NULL`. A comparison against an absent value is neither true nor
-false (SQL's three-valued logic), so such a row is dropped from the result.
+false (SQL's three-valued logic), so such a row is dropped from the result. An
+object can be absent too — a domain field or a `D[…]` that matches no row — and
+`defined (id o)` / `undefined (id o)` test the row's presence.
 
 ## Realization
 
 A database connects the language to storage. It maps:
 
-- a **domain** → a table or view;
-- a **field** → a column, with a codec decoding the cell into the field's value
-  (e.g. JSON text → `List Int`);
+- a **domain** → a table or view, whose primary-key columns identify the objects;
+- an **input field** → a column of that table;
+- a **domain field** → a foreign key, compiled to a `LEFT JOIN` of the linked
+  table, one join shared by equal object expressions;
 - a **constant** → a fixed SQL expression;
-- a query's **condition** → a SQL `WHERE`; its **output** → selected columns,
-  decoded and rendered to JSON (a whole-object item renders all of the domain's
-  output fields); its **order** → `ORDER BY`; its **limit** → `LIMIT`.
+- a query's **condition** → a SQL `WHERE`; its **output** → selected expressions
+  under their column aliases, each result cell decoded at its declared type; its
+  **order** → `ORDER BY`, where a reference to an output column renders as the bare
+  alias; its **limit** → `LIMIT`.
 
 Lists and products are realized as JSON arrays: a list or tuple literal compiles to
 `json_array(…)`, a tuple projection to `json_extract(…)`, and a comparison of lists or
-tuples is SQLite's comparison over the (canonical) JSON. Ordering keys must still be
-scalar.
+tuples is SQLite's comparison over the (canonical) JSON.
 
 ## Implementation
 
 MathQL is a standalone Lean package. Expressions are parsed by a parser combinator
 (`Parsing.lean`); a whole query is decoded from JSON (`QueryJson.lean`); it is
 elaborated by the bidirectional judgement into an intrinsically-typed `Expr`
-(`Rules.lean`, `Typing.lean`), so ill-typed queries are rejected with located
-errors; and it is compiled to a single SQL `SELECT` (`Compile.lean`, `SQL.lean`).
-The result rows are decoded by the realization's codecs into JSON (`Execute.lean`).
-Every construct that reaches the database has a SQL image; there is no separate
-evaluator.
+(`Rules.lean`, `Typing.lean`), so ill-typed queries are rejected; and it is
+compiled to a single SQL `SELECT` (`Compile.lean`, `SQL.lean`). The result cells
+are decoded at their declared types into JSON (`Execute.lean`). Every construct
+that reaches the database has a SQL image; there is no separate evaluator.

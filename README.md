@@ -82,12 +82,13 @@ lake exe mathql
 - A query object returns `{"rows": [...]}` or `{"error": "..."}`. For example:
 
 ```
-{"domains": [["g", "Graph"]], "output": ["g.graph6", "g.num_edges"], "condition": "g.num_vertices == 5", "order": [["g.num_edges", "desc"]], "limit": 3}
+{"domains": [["g", "Graph"]], "output": {"g6": "id(g)", "edges": "g.num_edges"}, "condition": "g.num_vertices == 5", "order": [["edges", "desc"]], "limit": 3}
 ```
 
-Conditions and order entries are expressions of the query language. ASCII
-operators (`== != < <= > >=`, `&& || !`, `defined`/`undefined`) are recommended;
-the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also accepted.
+The output values, the condition, and the order entries are expressions of the
+query language. ASCII operators (`== != < <= > >=`, `&& || !`,
+`defined`/`undefined`) are recommended; the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also
+accepted.
 
 ## MCP server
 
