@@ -18,12 +18,15 @@ structure Query where
 rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so when
 it matches no row its columns are NULL. -/
 def renderQuery (q : Query) : String :=
-  let froms := ", ".intercalate <| q.froms.map fun (table, alias) => s!"{table} AS {alias}"
+  let froms := ", ".intercalate <| q.froms.map fun (table, alias) =>
+    s!"{renderIdent table} AS {renderIdent alias}"
   let joins := String.join <| q.joins.map fun (table, alias, eqs) =>
-    let conds := eqs.map fun (col, e) => s!"{alias}.{col} = {renderExpr e}"
+    let conds := eqs.map fun (col, e) =>
+      s!"{renderIdent alias}.{renderIdent col} = {renderExpr e}"
     let on := if conds.isEmpty then "1" else " AND ".intercalate conds
-    s!" LEFT JOIN {table} AS {alias} ON {on}"
-  let cols  := ", ".intercalate <| q.output.map fun (e, alias) => s!"{renderExpr e} AS {alias}"
+    s!" LEFT JOIN {renderIdent table} AS {renderIdent alias} ON {on}"
+  let cols  := ", ".intercalate <| q.output.map fun (e, alias) =>
+    s!"{renderExpr e} AS {renderIdent alias}"
   let order := match q.order with
     | [] => ""
     | es => " ORDER BY " ++ ", ".intercalate (es.map fun (e, d) => s!"{renderExpr e} {renderDir d}")

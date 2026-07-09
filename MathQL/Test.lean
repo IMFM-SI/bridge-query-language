@@ -13,7 +13,8 @@ def toyDB : Database where
         column :=
           [(.label "graph6", { column := "graph6", ty := .string, isPrimary := true, doc := "" }),
            (.label "n", { column := "n", ty := .int, isPrimary := false, doc := "" }),
-           (.label "planar", { column := "planar", ty := .bool, isPrimary := false, doc := "" })]
+           (.label "planar", { column := "planar", ty := .bool, isPrimary := false, doc := "" }),
+           (.label "ds", { column := "ds", ty := .list .int, isPrimary := false, doc := "" })]
         foreignKey := []
         doc := "" })]
   examples := []
@@ -72,9 +73,14 @@ def compiles (j : Lean.Json) : Bool :=
 #guard compiles (jqOrder [("m", "g.n * g.n")] "g.planar" [("m", "desc")])
 #guard compiles (jqOrder [("m", "g.n")] "true" [("m + 1", "asc")])
 
--- The alias renders bare in ORDER BY.
+-- The alias renders bare (but quoted) in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
-  | .ok s => s.endsWith "ORDER BY m DESC"
+  | .ok s => s.endsWith "ORDER BY \"m\" DESC"
+  | .error _ => false
+
+-- Identifiers are quoted; list comparisons canonicalize both sides through json().
+#guard match renderOf (jq [("n", "g.n")] "g.ds == [2, 2]") with
+  | .ok s => s.endsWith "WHERE (json(\"g\".\"ds\") = json(json_array(2, 2)))"
   | .error _ => false
 
 -- SQL expression rendering (shown for review, not asserted).

@@ -176,10 +176,12 @@ def compileExpr (Γ : SqlCtx) (e : Expr) : CompileM SQL.Expr := do
     let s₂ ← compileExpr Γ e₂
     return .binop op s₁ s₂
 
-  | .compare op _ e₁ e₂ =>
+  | .compare op t e₁ e₂ =>
     let s₁ ← compileExpr Γ e₁
     let s₂ ← compileExpr Γ e₂
-    return .compare op s₁ s₂
+    match t with
+    | .list _ | .prod _ => return .compare op (.json s₁) (.json s₂)
+    | .int | .bool | .string => return .compare op s₁ s₂
 
   | .ite c a b =>
     let sc ← compileExpr Γ c

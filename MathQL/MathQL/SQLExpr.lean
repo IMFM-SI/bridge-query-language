@@ -16,6 +16,7 @@ inductive Expr where
   | isNull    : Expr → Expr
   | isNotNull : Expr → Expr
   | case      : (cond thn els : Expr) → Expr   -- CASE WHEN cond THEN thn ELSE els END
+  | json        : Expr → Expr                  -- json(e), the canonical (minified) text
   | jsonArray   : List Expr → Expr             -- json_array(…)
   | jsonExtract : Expr → Nat → Expr            -- json_extract(e, '$[i]')
 deriving Repr
@@ -41,13 +42,16 @@ def renderDir : Direction → String
 def renderUnop : UnaryOp → String
   | .not => "NOT" | .neg => "-"
 
+/-- Render an identifier, double-quoted, an embedded quote doubled. -/
+def renderIdent (s : String) : String := "\"" ++ s.replace "\"" "\"\"" ++ "\""
+
 mutual
 
 /-- Render an expression to SQLite text; string literals are quoted here
 (single quotes, `''` escaping an embedded quote). -/
 def renderExpr : Expr → String
-  | .col table column => s!"{table}.{column}"
-  | .ref name         => name
+  | .col table column => s!"{renderIdent table}.{renderIdent column}"
+  | .ref name         => renderIdent name
   | .int n            => toString n
   | .bool b           => if b then "1" else "0"
   | .str s            => "'" ++ s.replace "'" "''" ++ "'"
@@ -58,6 +62,7 @@ def renderExpr : Expr → String
   | .isNull e         => s!"({renderExpr e} IS NULL)"
   | .isNotNull e      => s!"({renderExpr e} IS NOT NULL)"
   | .case c t e       => s!"(CASE WHEN {renderExpr c} THEN {renderExpr t} ELSE {renderExpr e} END)"
+  | .json e           => s!"json({renderExpr e})"
   | .jsonArray es     => s!"json_array({renderArgs es})"
   | .jsonExtract e i  => s!"json_extract({renderExpr e}, '$[{i}]')"
 
