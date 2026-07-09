@@ -4,52 +4,55 @@ import SQLite
 import Lean.Data.Json
 
 /-! Execution of a type-checked query against a SQLite connection, producing a
-JSON array of result rows. -/
+JSON array of result rows. Each output column is read at its declared type and
+rendered to JSON; a NULL cell becomes JSON `null`. -/
 
 namespace MathQL
 
-/-- Read one row's requested output values, keyed by output item. Every bound
-variable is decoded in turn (the column cursor threads across the join), but only the
-entries named in `q.output` are rendered: the whole object (via `toJson`), a single
-field (via `outputField`), or the primary key (via `idJson`). -/
-def rowFields (q : Query) (vars : List (Ident × Domain)) :
-    SQLite.RowReader (List (OutputItem × Lean.Json)) := do
-  let perVar ← vars.mapM fun (x, dom) => do
-    let o ← dom.decode
-    return q.output.filterMap fun item =>
-      match item with
-      | .ident y => if y == x then some (item, dom.toJson o) else none
-      | .field y l => if y == x then (dom.outputField.lookup l).map fun f => (item, f o) else none
-      | .id y => if y == x then some (item, dom.idJson o) else none
-  return perVar.flatten
+/-- Read one output column at its declared type, as JSON; a NULL cell is `null`.
+Lists and products are stored as JSON text and returned verbatim. -/
+def decodeCell : Ty → SQLite.RowReader Lean.Json
+  | .int => do
+    let o : Option Int64 ← SQLite.RowReader.field
+    return match o with | some i => Lean.toJson i.toInt | none => Lean.Json.null
+  | .bool => do
+    let o : Option Bool ← SQLite.RowReader.field
+    return match o with | some b => Lean.toJson b | none => Lean.Json.null
+  | .string => do
+    let o : Option String ← SQLite.RowReader.field
+    return match o with | some s => Lean.toJson s | none => Lean.Json.null
+  | .list _ | .prod _ => do
+    let o : Option String ← SQLite.RowReader.field
+    match o with
+    | none => return Lean.Json.null
+    | some s =>
+      match Lean.Json.parse s with
+      | .ok j => return j
+      | .error e => throw (IO.userError s!"expected JSON in a list or product column: {e}")
 
-/-- Assemble a row's JSON object in the query's output order. A whole object is
-keyed by the variable name, a field by `variable.label`, a primary key by
-`id(variable)`. -/
-def rowObject (q : Query) (fields : List (OutputItem × Lean.Json)) : Lean.Json :=
-  Lean.Json.mkObj <| q.output.map fun item =>
-    let key := match item with
-      | .ident x => x.name
-      | .field x l => s!"{x.name}.{l.name}"
-      | .id x => s!"id({x.name})"
-    (key, (fields.lookup item).getD Lean.Json.null)
+/-- Read one row's output columns, keyed by their aliases, in output order. -/
+def rowObject (q : Query) : SQLite.RowReader Lean.Json := do
+  let fields ← q.output.mapM fun (x, t, _) => do
+    let v ← decodeCell t
+    return (x.name, v)
+  return Lean.Json.mkObj fields
 
 /-- Step through every result row, decoding each into its output object. -/
-partial def collectRows (stmt : SQLite.Stmt) (vars : List (Ident × Domain)) (q : Query)
-    (acc : Array Lean.Json) : IO (Array Lean.Json) := do
+partial def collectRows (stmt : SQLite.Stmt) (q : Query) (acc : Array Lean.Json) :
+    IO (Array Lean.Json) := do
   if ← stmt.step then
-    let fields ← (rowFields q vars).run stmt
-    collectRows stmt vars q (acc.push (rowObject q fields))
+    let row ← (rowObject q).run stmt
+    collectRows stmt q (acc.push row)
   else
     return acc
 
 /-- Run a type-checked query against an open SQLite connection, as a JSON array of rows. -/
 def run (db : SQLite) (D : Database) (q : Query) : IO (Except String Lean.Json) := do
-  match compile D q with
+  match compileQuery D q with
   | .error e => return .error e
   | .ok sql =>
     let stmt ← db.prepare (toString sql)
-    let rows ← collectRows stmt sql.vars q #[]
+    let rows ← collectRows stmt q #[]
     return .ok (Lean.Json.arr rows)
 
 end MathQL

@@ -19,6 +19,10 @@ inductive Expr where
   | jsonExtract : Expr → Nat → Expr            -- json_extract(e, '$[i]')
 deriving Repr
 
+def Expr.jsonArray' : List Expr → Expr
+| [e] => e
+| es => .jsonArray es
+
 /-- The SQL text of a binary operator. -/
 def renderBinop : BinaryOp → String
   | .and => "AND" | .or => "OR"

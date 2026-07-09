@@ -50,31 +50,24 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
 
   | .str s => pure ⟨.string, .str s, .str⟩
 
-  | .ident x' =>
+  | .ident x' => do
     let x := .ident x'
-    match h : Γ.lookupIdent x with
-    | some t => pure ⟨t, .ident x, .ident h⟩
-    | none => throw s!"unbound constant '{x'}'"
+    let ⟨t, h⟩ ← (Γ.getIdent x).attach
+    return ⟨t, .ident x, .ident h⟩
 
   | .id e => do
-    let ⟨d, e, h⟩ ← inferDomain Γ e
-    match hd : Γ.lookupDomain d with
-    | some dt => pure ⟨dt.idTy, .id d e, .id h hd rfl⟩
-    | none => throw s!"unknown domain {repr d}"
+    let ⟨d, e, he⟩ ← inferDomain Γ e
+    let ⟨ts, ht⟩ ← (Γ.getIdTys d).attach
+    return ⟨.prod' ts, .id e, .id he ht rfl⟩
 
   | .obj _ _ =>
     throw s!"a bare object cannot appear in an expression"
 
   | .field e l' => do
     let l := Label.label l'
-    let ⟨d, e, h⟩ ← inferDomain Γ e
-    match hd : Γ.lookupDomain d with
-    | some dt =>
-      match ht : dt.inputField.lookup l with
-      | some (.ty t) => pure ⟨t, .field d e l, .field h hd ht⟩
-      | some (.domain _) => throw s!"cannot project domain field {l'}"
-      | none => throw s!"domain {repr d} does not have field {l'} "
-    | none => throw s!"unknown domain {repr d}"
+    let ⟨d, e, he⟩ ← inferDomain Γ e
+    let ⟨t, ht⟩ ← (Γ.getInputFieldTy d l).attach
+    return ⟨t, .field e l, .field he ht⟩
 
   | .proj e idx => do
     let ⟨te, e', he⟩ ← infer Γ e
@@ -135,28 +128,20 @@ def inferDomain (Γ : Context) (e : Input.Expr) :
 
   | .ident x' => do
     let x := .ident x'
-    match h : Γ.lookupDomainIdent x with
-    | some d => return ⟨d, .ident x, .ident h⟩
-    | none => throw s!"{x'} is not a known domain"
+    let ⟨d, h⟩ ← (Γ.getDomainIdent x).attach
+    return ⟨d, .ident x, .ident h⟩
 
-  | .obj d' e => do
+  | .obj d' es => do
     let d := .domain d'
-    match h : Γ.lookupDomain d with
-    | some dt =>
-      let ⟨e, he⟩ ← check Γ e dt.idTy
-      return ⟨d, .obj d e, .obj h he⟩
-    | none => throw s!"unknown domain {d'}"
+    let ⟨ts, ht⟩ ← (Γ.getIdTys d).attach
+    let ⟨es, he⟩ ← checkTuple Γ es ts
+    return ⟨d, .obj d es, .obj ht he⟩
 
   | .field e f' => do
     let f := Label.label f'
     let ⟨d, e, he⟩ ← inferDomain Γ e
-    match hd : Γ.lookupDomain d with
-    | some dt =>
-      match hf : dt.inputField.lookup f with
-      | some (.domain d') => return ⟨d', .field e f, .field he hd hf⟩
-      | some (.ty _) => throw s!"{f'} is not a domain field"
-      | none => throw s!"unknown field {f'}"
-    | none => throw s!"internal error"
+    let ⟨dn, hd⟩ ← (Γ.getDomainField d f).attach
+    return ⟨dn, .field e f, .field he hd⟩
 
   | .int _  | .bool _ | .str _ | .id _ | .tuple _ | .list _ | .proj _ _
   | .ite _ _ _ | .unop _ _| .binop _ _ _ | .compare _ _ _ | .defined _ | .undefined _ =>
@@ -200,16 +185,16 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-def checkOutput (Γ : Context) (acc : List (Ident × Expr)):
+def checkOutput (Γ : Context) (acc : List (Ident × Ty × Expr)):
   List (String × Input.Expr) →
-  Result (Context × List (Ident × Expr))
+  Result (Context × List (Ident × Ty × Expr))
 
 | [] => return (Γ, acc.reverse)
 
 | (x', e) :: xes => do
   let x := Ident.ident x'
   let ⟨t, e, _⟩ ← infer Γ e
-  checkOutput (Γ.extendIdent x t) ((x, e) :: acc) xes
+  checkOutput (Γ.extendIdent x t) ((x, t, e) :: acc) xes
 
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
     List (String × String) → Result (Context × List (Ident × DomainName))

@@ -1,30 +1,29 @@
 import MathQL.SQLExpr
-import MathQL.Database
 
 namespace MathQL.SQL
 
-/-- A SQL `SELECT` query: the variables it ranges over (each bound to a `Domain`
-and used as a table alias), the hoisted joins (table, alias, `ON` condition),
-and the boolean condition. The selected columns and the `FROM` clause are
-derived from `vars`. -/
+/-- A SQL `SELECT` query: the `FROM` tables with their aliases, the hoisted
+joins (each a table, its alias, and the columnwise equalities `alias.column =
+expr` that form the `ON` condition), the output columns each with its alias, the
+boolean condition, the ordering, and the limit. -/
 structure Query where
-  vars : List (Ident × Domain)
-  joins : List (String × String × Expr)
+  froms : List (String × String)
+  joins : List (String × String × List (String × Expr))
+  output : List (Expr × String)
   cond : Expr
-  limit : Option Nat
   order : List (Expr × Direction)
+  limit : Option Nat
 
-/-- Render a query to SQLite text, with a bare condition. The `SELECT` columns and
-`FROM` tables come from each variable's `Domain`. A hoisted join renders as
-`LEFT JOIN`: when it matches no row, its columns are NULL.
-TODO: select only the columns the output needs, rather than every column of the
-domain. -/
+/-- Render a query to SQLite text, with a bare condition. Each output column is
+rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so when
+it matches no row its columns are NULL. -/
 def renderQuery (q : Query) : String :=
-  let froms := ", ".intercalate <| q.vars.map fun (x, dom) => s!"{dom.table} AS {x.name}"
-  let joins := String.join <| q.joins.map fun (table, alias, condition) =>
-                 s!" LEFT JOIN {table} AS {alias} ON {renderExpr condition}"
-  let cols  := ", ".intercalate <| q.vars.flatMap fun (x, dom) =>
-                 dom.select.map fun c => renderExpr (.col x.name c)
+  let froms := ", ".intercalate <| q.froms.map fun (table, alias) => s!"{table} AS {alias}"
+  let joins := String.join <| q.joins.map fun (table, alias, eqs) =>
+    let conds := eqs.map fun (col, e) => s!"{alias}.{col} = {renderExpr e}"
+    let on := if conds.isEmpty then "1" else " AND ".intercalate conds
+    s!" LEFT JOIN {table} AS {alias} ON {on}"
+  let cols  := ", ".intercalate <| q.output.map fun (e, alias) => s!"{renderExpr e} AS {alias}"
   let order := match q.order with
     | [] => ""
     | es => " ORDER BY " ++ ", ".intercalate (es.map fun (e, d) => s!"{renderExpr e} {renderDir d}")

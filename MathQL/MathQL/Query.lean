@@ -9,8 +9,8 @@ structure Query where
   vars : List (Ident × DomainName)
   /-- boolean condition -/
   condition : Expr
-  /-- output fields with mandatory aliases -/
-  output : List (Ident × Expr)
+  /-- output fields, each an alias, the field's type, and the expression -/
+  output : List (Ident × Ty × Expr)
   limit : Option Nat
   order : List (Expr × Direction)
 

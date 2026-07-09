@@ -141,10 +141,10 @@ private partial def atomExpr : Parser Input.Expr :=
   parenOrTupleExpr <|>
   identOrObjExpr
 
-/-- A bare identifier `x`, or an object `D[e]`. -/
+/-- A bare identifier `x`, or an object `D[e₁, …, eₙ]`. -/
 private partial def identOrObjExpr : Parser Input.Expr := do
   let x ← ident
-  (do tok "["; let e ← expr; tok "]"; return .obj x e) <|> pure (.ident x)
+  (do tok "["; let es ← sepBy expr (tok ","); tok "]"; return .obj x es) <|> pure (.ident x)
 
 private partial def parenOrTupleExpr : Parser Input.Expr := do
   tok "("

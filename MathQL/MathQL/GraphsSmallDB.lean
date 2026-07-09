@@ -66,7 +66,7 @@ structure Graph where
   chromaticNumber : Nat
   automorphismCount : Nat
 
-/-- Decode one row, reading columns in the order of `graphColumns`/`select`. -/
+/-- Decode one row, reading columns in the order of `graphColumns`. -/
 def Graph.decode : SQLite.RowReader Graph := do
   let graph6 ← Column.string
   let numVertices ← Column.nat
@@ -95,7 +95,7 @@ def Graph.decode : SQLite.RowReader Graph := do
            isTree, isForest, isBipartite, isPlanar, isEulerian, numTriangles,
            cliqueNumber, independenceNumber, chromaticNumber, automorphismCount }
 
-/-- The queryable columns, in `decode`/`select` order: `(column name, query type, doc)`. -/
+/-- The queryable columns, in `decode` order: `(column name, query type, doc)`. -/
 def graphColumns : List (String × Ty × String) :=
   [ ("graph6", .string, "the graph in graph6 encoding (nauty's canonical form)"),
     ("num_vertices", .int, "order: the number of vertices"),
@@ -146,15 +146,14 @@ def graphOutput : List (Label × (Graph → Lean.Json)) :=
     (.label "automorphism_count", fun g => Lean.toJson g.automorphismCount) ]
 
 /-- The `Graph` domain over the `graph` table. -/
-def graphDomain : Domain where
+def graphDomain : Realization where
   table := "graph"
-  primaryKey := sorry
-  idTy := sorry
-  inputField := graphColumns.map fun (name, ty, doc) =>
-    (.label name, { label := .label name, column := name, ty, doc })
-  select := graphColumns.map fun (name, _, _) => name
+  column := graphColumns.map fun (name, ty, doc) =>
+    (.label name, { column := name, ty, isPrimary := name == "graph6", doc })
+  foreignKey := []
   Obj := Graph
   toJson := fun g => Lean.Json.mkObj (graphOutput.map fun (l, f) => (l.name, f g))
+  idJson := fun g => Lean.toJson g.graph6
   decode := Graph.decode
   outputField := graphOutput
   doc := "A finite simple graph (no loops or multiple edges), up to isomorphism."
@@ -168,39 +167,39 @@ def database : Database where
   examples :=
     [ ("the trees on 5 vertices",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g.graph6", "g.degree_sequence"],
+                "output": { "graph6": "g.graph6", "degree_sequence": "g.degree_sequence" },
                 "condition": "g.num_vertices == 5 && g.is_tree" }),
       ("the three graphs on 5 vertices with the most edges",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g.graph6", "g.num_edges"],
+                "output": { "graph6": "g.graph6", "num_edges": "g.num_edges" },
                 "condition": "g.num_vertices == 5",
                 "order": [["g.num_edges", "desc"]],
                 "limit": 3 }),
       ("connected non-planar graphs on at least 6 vertices, fewest vertices first",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g.graph6", "g.num_vertices"],
+                "output": { "graph6": "g.graph6", "num_vertices": "g.num_vertices" },
                 "condition": "g.is_connected && !g.is_planar && g.num_vertices >= 6",
                 "order": [["g.num_vertices", "asc"]],
                 "limit": 5 }),
       ("pairs of graphs with equally many vertices where the first has fewer edges",
         json% { "domains": [["g", "Graph"], ["h", "Graph"]],
-                "output": ["g.graph6", "h.graph6"],
+                "output": { "first": "g.graph6", "second": "h.graph6" },
                 "condition": "g.num_vertices == h.num_vertices && g.num_edges < h.num_edges",
                 "limit": 5 }),
-      ("forests (girth undefined) on at most 4 vertices, returned whole",
+      ("forests (girth undefined) on at most 4 vertices",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g"],
+                "output": { "graph6": "g.graph6" },
                 "condition": "undefined g.girth && g.num_vertices <= 4",
                 "limit": 5 }),
       ("bipartite or planar graphs whose diameter is defined and exceeds 2, widest first",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g.graph6", "g.diameter"],
+                "output": { "graph6": "g.graph6", "diameter": "g.diameter" },
                 "condition": "(g.is_bipartite || g.is_planar) && defined g.diameter && g.diameter > 2",
                 "order": [["g.diameter", "desc"]],
                 "limit": 5 }),
       ("the most irregular graphs, by the spread between max and min degree",
         json% { "domains": [["g", "Graph"]],
-                "output": ["g.graph6", "g.max_degree", "g.min_degree"],
+                "output": { "graph6": "g.graph6", "max_degree": "g.max_degree", "min_degree": "g.min_degree" },
                 "condition": "g.max_degree != g.min_degree",
                 "order": [["g.max_degree - g.min_degree", "desc"]],
                 "limit": 3 }) ]

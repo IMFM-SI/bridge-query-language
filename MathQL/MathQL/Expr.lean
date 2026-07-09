@@ -12,9 +12,10 @@ inductive Domain where
   /-- An identifier -/
   | ident : Ident → Domain
   /-- Object with the given ID -/
-  | obj : DomainName → Expr → Domain
+  | obj : DomainName → List Expr → Domain
   /-- A field that refers to a domain -/
   | field : Domain → Label → Domain
+deriving Repr, BEq
 
 /-- Expressions -/
 inductive Expr where
@@ -27,9 +28,9 @@ inductive Expr where
   /-- Predefined constant -/
   | ident : Ident → Expr
   /-- Object ID -/
-  | id : DomainName → Domain → Expr
+  | id : Domain → Expr
   /-- Field projection -/
-  | field : DomainName → Domain → Label → Expr
+  | field : Domain → Label → Expr
   /-- Unary operation -/
   | unop : UnaryOp → Expr → Expr
   /-- Binary operation -/

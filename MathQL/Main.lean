@@ -12,7 +12,7 @@ open MathQL
 /-- Run one request `Json` and produce its response `Json`. -/
 def handle (db : SQLite) (database : Database) (j : Lean.Json) : IO Lean.Json := do
   match j.getObjVal? "describe" with
-  | .ok _ => return database.schema
+  | .ok _ => return database.describe
   | .error _ =>
     match Input.Query.fromJson j >>= checkQuery database.getContext with
     | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]

@@ -9,7 +9,7 @@ mutual
 inductive ExprOfTy : Context → Expr → Ty → Prop where
 
   | ident : ∀ {Γ : Context} {x t},
-        Γ.lookupIdent x = .some t →
+        Γ.getIdent x = .ok t →
         ExprOfTy Γ (.ident x) t
 
   | int : ∀ {Γ n},
@@ -21,17 +21,16 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
   | str : ∀ {Γ s},
         ExprOfTy Γ (.str s) .string
 
-  | id : ∀ {Γ e d dt t},
+  | id : ∀ {Γ e d ts t},
        DomainOfTy Γ e d →
-       Γ.lookupDomain d = .some dt →
-       dt.idTy = t →
-       ExprOfTy Γ (.id d e) t
+       Γ.getIdTys d = .ok ts →
+       Ty.prod' ts = t →
+       ExprOfTy Γ (.id e) t
 
-  | field : ∀ {Γ e d dt l t},
+  | field : ∀ {Γ e d l t},
         DomainOfTy Γ e d →
-        Γ.lookupDomain d = .some dt →
-        dt.inputField.lookup l = .some (.ty t) →
-        ExprOfTy Γ (.field d e l) t
+        Γ.getInputFieldTy d l = .ok t →
+        ExprOfTy Γ (.field e l) t
 
   | unop : ∀ {Γ op e t₁ t₂},
         unaryTy op = (t₁, t₂) →
@@ -77,18 +76,17 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
 
 inductive DomainOfTy : Context → Domain → DomainName → Prop where
   | ident : ∀ {Γ x d},
-      Γ.lookupDomainIdent x = .some d →
+      Γ.getDomainIdent x = .ok d →
       DomainOfTy Γ (.ident x) d
 
-  | obj : ∀ {Γ d dt e},
-      Γ.lookupDomain d = .some dt →
-      ExprOfTy Γ e dt.idTy →
-      DomainOfTy Γ (.obj d e) d
+  | obj : ∀ {Γ d ts es},
+      Γ.getIdTys d = .ok ts →
+      TupleOfTy Γ es ts →
+      DomainOfTy Γ (.obj d es) d
 
-  | field : ∀ {Γ d d' dt e l},
+  | field : ∀ {Γ d d' e l},
       DomainOfTy Γ e d →
-      Γ.lookupDomain d = .some dt →
-      dt.inputField.lookup l = .some (.domain d') →
+      Γ.getDomainField d l = .ok d' →
       DomainOfTy Γ (.field e l) d'
 
 inductive TupleOfTy : Context → List Expr → List Ty → Prop where

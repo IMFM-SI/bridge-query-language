@@ -14,7 +14,7 @@ inductive Expr where
   | str : String → Expr
   | ident : String → Expr
   | id : Expr → Expr
-  | obj : String → Expr → Expr
+  | obj : String → List Expr → Expr
   | field : Expr → String → Expr
   | proj : Expr → Nat → Expr
   | list : List Expr → Expr
