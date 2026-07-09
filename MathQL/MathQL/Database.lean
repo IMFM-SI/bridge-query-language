@@ -2,7 +2,7 @@ import MathQL.Name
 import MathQL.Ty
 import MathQL.Context
 import MathQL.SQLExpr
-import SQLite
+import Lean.Data.Json.Basic
 
 namespace MathQL
 
@@ -31,6 +31,8 @@ structure Schema where
   column : List (Label × Column)
   /-- Foreign keys -/
   foreignKey : List (Label × ForeignKey)
+  /-- A human description of the domain -/
+  doc : String
 
 def Schema.primaryColumns (sch : Schema) : List String :=
   (sch.column.filter (fun (_, c) => c.isPrimary)).map (fun (_, c) => c.column)
@@ -40,43 +42,27 @@ def Schema.getForeignKey (sch : Schema) (l : Label): Result ForeignKey :=
   | .some fk => return fk
   | .none => throw s!"uknown foreign key {repr l}"
 
-/-- Mapping from a table schema to Lean -/
-structure Realization extends Schema where
-  /-- The Lean type of a decoded object -/
-  Obj : Type
-  /-- Convert the object as a whole to Json-/
-  toJson : Obj → Lean.Json
-  /-- Render the primary key of a decoded object -/
-  idJson : Obj → Lean.Json
-  /-- Reads the projected cells into an object -/
-  decode : SQLite.RowReader Obj
-  /-- Output fields -/
-  outputField : List (Label × (Obj → Lean.Json))
-  /-- A human description of the domain -/
-  doc : String
-
 structure Database where
   /-- A human overview of what the database contains -/
   overview : String
   /-- The constants known to this database -/
   const : List (Ident × Ty × SQL.Expr)
-  /-- The domains/tables known to this database, each with its realization -/
-  domain : List (DomainName × Realization)
+  /-- The domains/tables known to this database -/
+  domain : List (DomainName × Schema)
   /-- Example queries, each with a short note -/
   examples : List (String × Lean.Json)
 
 def Database.getDomainContext (D : Database) : DomainContext :=
   D.domain.map fun (n, d) =>
     (n, { inputField := d.column.map fun (l, f) => (l, {ty := f.ty, isPrimary := f.isPrimary})
-          domainField := d.foreignKey.map fun (l, fk) => (l, fk.domain)
-          outputField := d.outputField.map fun (l, _) => l })
+          domainField := d.foreignKey.map fun (l, fk) => (l, fk.domain) })
 
 def Database.getContext (D : Database) : Context where
   domain := D.getDomainContext
   ident := D.const.map fun (x, t, _) => (x, .ty t)
 
 /-- A JSON description of the database for the `describe` request: an overview, each
-domain with its doc and its queryable fields (label, type, doc) and output fields,
+domain with its doc and its queryable fields (label, type, doc),
 the constants, and example queries. -/
 def Database.describe (D : Database) : Lean.Json :=
   let domains := D.domain.map fun (n, dom) =>
@@ -92,8 +78,7 @@ def Database.describe (D : Database) : Lean.Json :=
           Lean.Json.mkObj
             [ ("label", Lean.Json.str l.name),
               ("domain", Lean.Json.str f.domain.name),
-              ("doc", Lean.Json.str f.doc) ]).toArray),
-        ("outputFields", Lean.Json.arr <| (dom.outputField.map fun (l, _) => Lean.Json.str l.name).toArray) ]
+              ("doc", Lean.Json.str f.doc) ]).toArray) ]
   let constants := D.const.map fun (x, t, _) =>
     Lean.Json.mkObj [("name", Lean.Json.str x.name), ("type", Lean.Json.str t.render)]
   let examples := D.examples.map fun (note, q) =>

@@ -16,8 +16,6 @@ structure DomainTy where
   inputField : List (Label × InputField)
   /-- Fields pointing to other domains -/
   domainField : List (Label × DomainName)
-  /-- Field projections in the output -/
-  outputField : List Label
 
 abbrev DomainContext := List (DomainName × DomainTy)
 
@@ -70,11 +68,6 @@ def Context.getDomainField (Γ : Context) (d : DomainName) (l : Label) : Result 
 def Context.getInputFieldTy (Γ : Context) (d : DomainName) (l : Label) : Result Ty := do
   let ft ← Γ.getInputField d l
   return ft.ty
-
-def Context.isOutputField (Γ : Context) (d : DomainName) (l : Label) : Result Unit := do
-  let td ← Γ.getDomain d
-  if ¬ (td.outputField.elem l) then
-    throw s!"domain {repr d} does not have an output field {repr l}"
 
 def Context.empty (D : DomainContext) : Context where
   domain := D

@@ -9,8 +9,7 @@ def toyCtx : DomainContext :=
     { inputField := [(.label "graph6", { ty := .string, isPrimary := true }),
                      (.label "n", { ty := .int, isPrimary := false }),
                      (.label "planar", { ty := .bool, isPrimary := false })],
-      domainField := [],
-      outputField := [.label "n"] })]
+      domainField := [] })]
 
 /-- A query in JSON form binding `g` and `h` to `Graph`, with the given output
     (alias, expression) pairs and condition. -/

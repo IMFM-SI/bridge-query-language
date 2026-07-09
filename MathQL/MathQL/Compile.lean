@@ -252,7 +252,7 @@ def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
   let Γ : SqlCtx :=
     { ident := (q.vars.map fun (x, n) => (x, .domain n)) ++
                (D.const.map fun (x, _, s) => (x, .const s))
-      schema := D.domain.map (fun (dn, r) => (dn, r.toSchema))
+      schema := D.domain
     }
   let act : CompileM (List (SQL.Expr × String) × SQL.Expr × List (SQL.Expr × Direction)) := do
     let output ← q.output.mapM fun (x, _, e) => do

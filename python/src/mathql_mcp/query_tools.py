@@ -17,7 +17,7 @@ def register(mcp: FastMCP, engine: Engine, grammar_path: Path) -> None:
     @mcp.tool()
     def query(
         domains: list[list[str]],
-        output: list[str],
+        output: dict[str, str],
         condition: Optional[str] = None,
         order: Optional[list[list[str]]] = None,
         limit: Optional[int] = None,
@@ -25,7 +25,9 @@ def register(mcp: FastMCP, engine: Engine, grammar_path: Path) -> None:
         """Run a MathQL query and return the matching rows.
 
         domains: variable bindings, e.g. [["g", "Graph"]].
-        output: items to return, each "x" (the whole object) or "x.field".
+        output: a mapping from result column name to the expression it returns,
+            e.g. {"g6": "id(g)", "edges": "g.num_edges"}. Each expression is over
+            the bound variables (see the grammar tool).
         condition: a boolean expression over the bound variables (optional).
         order: [expression, "asc"|"desc"] pairs (optional).
         limit: maximum number of rows (optional).
