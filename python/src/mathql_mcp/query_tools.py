@@ -9,11 +9,7 @@ from mathql_mcp.engine import Engine
 
 
 def register(
-    mcp: FastMCP,
-    engines: dict[str, Engine],
-    schemas: dict[str, dict],
-    entries: list[tuple[str, str, str, bool]],
-    grammar_path: Path,
+    mcp: FastMCP, engines: dict[str, Engine], schemas: dict[str, dict], grammar_path: Path
 ) -> None:
     """Register the query tools and the grammar resource on `mcp`."""
 
@@ -74,11 +70,8 @@ def register(
         if database is None:
             return {
                 "databases": [
-                    {"name": name, "overview": overview, "available": True}
-                    if available
-                    else {"name": name, "overview": overview, "available": False,
-                          "enable": hint}
-                    for name, overview, hint, available in entries
+                    {"name": name, "overview": schemas[name].get("overview", "")}
+                    for name in engines
                 ]
             }
         else:
