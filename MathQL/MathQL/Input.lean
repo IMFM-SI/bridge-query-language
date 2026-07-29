@@ -44,6 +44,7 @@ deriving Repr
 inductive PostExpr where
   | int : Int → PostExpr
   | ident : String → PostExpr
+  | call : String × List PostExpr → PostExpr
  deriving Repr
 
 /-- A query. `condition`, `order`, and `limit` are optional in the input; the

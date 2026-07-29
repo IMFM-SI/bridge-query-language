@@ -54,6 +54,7 @@ deriving Repr, BEq
 inductive PostExpr where
   | ident : Ident → PostExpr
   | int : Int → PostExpr
+  | call : Ident → List PostExpr → PostExpr
 deriving Repr
 
 end

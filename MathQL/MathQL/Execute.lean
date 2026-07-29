@@ -2,6 +2,7 @@ import MathQL.Compile
 import MathQL.Database
 import SQLite
 import Lean.Data.Json
+import MathQL.Postprocess
 
 /-! Execution of a type-checked query against a SQLite connection, producing a
 JSON array of result rows. Each output column is read at its declared type and
@@ -36,19 +37,32 @@ def rowObject (cs : List (Ident × Ty × Expr)) : SQLite.RowReader (List (Ident 
     let v ← decodeCell t
     return (x, v)
 
-def evalPostExpr (env : List (Ident × Lean.Json)) : PostExpr → Lean.Json
+/-- A runtime environment for postprocessing expressions -/
+structure PostEnvironment where
+  ident : List (Ident × Lean.Json)
+  function : List (Ident × (List Lean.Json → Lean.Json))
+
+def evalPostExpr (env : PostEnvironment) : PostExpr → Lean.Json
+
 | .int n => .num n
+
 | .ident x =>
-  match env.lookup x with
+  match env.ident.lookup x with
   | none => .null
   | some v => v
 
-def evalPostprocess (env : List (Ident × Lean.Json)) :
+| .call f args =>
+  match env.function.lookup f with
+  | .none => .null
+  | .some f => f (args.map (evalPostExpr env))
+
+
+def evalPostprocess (env : PostEnvironment) :
   List (Ident × Ty × PostExpr) → List (Ident × Lean.Json)
 | [] => []
 | (x, _, e) :: ps =>
   let v := evalPostExpr env e
-  let vs := evalPostprocess ((x, v) :: env) ps
+  let vs := evalPostprocess {env with ident := (x, v) :: env.ident} ps
   (x, v) :: vs
 
 /-- Step through every result row, decoding each into its output object. -/
@@ -56,7 +70,7 @@ partial def collectRows (stmt : SQLite.Stmt) (q : Query) (acc : Array (List (Ide
     IO (Array (List (Ident × Lean.Json))) := do
   if ← stmt.step then
     let row ← (rowObject q.output).run stmt
-    let post := evalPostprocess row q.postprocess
+    let post := evalPostprocess {ident := row, function := functionsImpl} q.postprocess
     collectRows stmt q (acc.push (row ++ post))
   else
     return acc

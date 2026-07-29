@@ -4,6 +4,7 @@ import MathQL.Context
 import MathQL.Expr
 import MathQL.Rules
 import MathQL.Query
+import MathQL.Postprocess
 
 namespace MathQL
 
@@ -212,22 +213,48 @@ def checkOrder (Γ : Context) :
     let rest ← checkOrder Γ rest
     return (e, entry.dir) :: rest
 
-def inferPostExpr (Γ : List (Ident × Ty)) :
-  Input.PostExpr → Result (Ty × PostExpr)
-| .int n => return (.int, .int n)
-| .ident x' =>
-  let x := .ident x'
-  match Γ.lookup x with
-  | none => throw s!"{x'} is not a valid output or a postprocessing field"
-  | some t => return (t, .ident x)
+mutual
+  def inferPostExpr (Γ : PostContext) : Input.PostExpr → Result (Ty × PostExpr)
+  | .int n => return (.int, .int n)
 
-def checkPostprocess (Γ : List (Ident × Ty)) :
+  | .ident x' =>
+    let x := .ident x'
+    match Γ.ident.lookup x with
+    | none => throw s!"{x'} is not a valid output or a postprocessing field"
+    | some t => return (t, .ident x)
+
+  | .call (f', args) =>
+    let f := .ident f'
+    match Γ.function.lookup f with
+    | none => throw s!"unknown postprocessing function {f'}"
+    | some (ts, t) => do
+      let args ← checkPostArgs Γ args ts
+      return (t, .call f args)
+
+  def checkPostExpr (Γ : PostContext) (e : Input.PostExpr) (t : Ty) : Result PostExpr := do
+    let ⟨t', e⟩ ← inferPostExpr Γ e
+    if t == t' then
+      return e
+    else
+      throw s!"expected type {t} but got {t'}"
+
+  def checkPostArgs (Γ : PostContext) : List Input.PostExpr → List Ty → Result (List PostExpr)
+  | [], [] => return []
+  | e :: es, t :: ts => do
+    let e ← checkPostExpr Γ e t
+    let es ← checkPostArgs Γ es ts
+    return e :: es
+  | [], _::_ => throw s!"too few arguments in a function call"
+  | _::_, [] => throw s!"too many arguments in a function call"
+end
+
+def checkPostprocess (Γ : PostContext) :
   List (String × Input.PostExpr) → Result (List (Ident × Ty × PostExpr))
 | [] => return []
 | (x, e) :: ps => do
   let x := .ident x
   let (t, e) ← inferPostExpr Γ e
-  let ps ← checkPostprocess ((x, t) :: Γ) ps
+  let ps ← checkPostprocess {Γ with ident := (x, t) :: Γ.ident} ps
   return (x, t, e) :: ps
 
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
@@ -236,7 +263,8 @@ def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let output ← checkOutput Γ q.output
   let Δ := output.foldl (fun Δ (x, t, _) => Δ.extendIdent x t) Γ
   let order ← checkOrder Δ (q.order.getD [])
-  let postprocess ← checkPostprocess (output.map (fun (id, ty, _) => (id, ty))) q.postprocess
+  let Ξ : PostContext := { ident := (output.map (fun (id, ty, _) => (id, ty))), function := functionsTy }
+  let postprocess ← checkPostprocess Ξ q.postprocess
   return { vars, condition, output, limit := q.limit, order, postprocess }
 
 end MathQL

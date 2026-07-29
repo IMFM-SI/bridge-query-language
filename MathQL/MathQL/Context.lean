@@ -78,3 +78,8 @@ def Context.extendIdent (Γ : Context) (x : Ident) (t : Ty) : Context :=
 
 def Context.extendDomainIdent (Γ : Context) (x : Ident) (d : DomainName) : Context :=
   { domain := Γ.domain, ident := (x, .domain d) :: Γ.ident }
+
+/-- A context for type-checking postprocessing expressions -/
+structure PostContext where
+  ident : List (Ident × Ty)
+  function : List (Ident × List Ty × Ty)
