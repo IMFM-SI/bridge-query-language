@@ -51,4 +51,9 @@ inductive Expr where
   | undefined : Expr → Expr
 deriving Repr, BEq
 
+inductive PostExpr where
+  | ident : Ident → PostExpr
+  | int : Int → PostExpr
+deriving Repr
+
 end

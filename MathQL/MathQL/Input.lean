@@ -41,6 +41,11 @@ structure OrderEntry where
   dir : Direction
 deriving Repr
 
+inductive PostExpr where
+  | int : Int → PostExpr
+  | ident : String → PostExpr
+ deriving Repr
+
 /-- A query. `condition`, `order`, and `limit` are optional in the input; the
     type-checker fills in `true`, the empty list, and none respectively. -/
 structure Query where
@@ -49,6 +54,7 @@ structure Query where
   condition : Option Expr := none
   order : Option (List OrderEntry) := none
   limit : Option Nat := none
+  postprocess : List (String × PostExpr) := []
 deriving Repr
 
 end MathQL.Input

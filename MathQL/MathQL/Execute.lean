@@ -31,18 +31,33 @@ def decodeCell : Ty → SQLite.RowReader Lean.Json
       | .error e => throw (IO.userError s!"expected JSON in a list or product column: {e}")
 
 /-- Read one row's output columns, keyed by their aliases, in output order. -/
-def rowObject (q : Query) : SQLite.RowReader Lean.Json := do
-  let fields ← q.output.mapM fun (x, t, _) => do
+def rowObject (cs : List (Ident × Ty × Expr)) : SQLite.RowReader (List (Ident × Lean.Json)) := do
+  cs.mapM fun (x, t, _) => do
     let v ← decodeCell t
-    return (x.name, v)
-  return Lean.Json.mkObj fields
+    return (x, v)
+
+def evalPostExpr (env : List (Ident × Lean.Json)) : PostExpr → Lean.Json
+| .int n => .num n
+| .ident x =>
+  match env.lookup x with
+  | none => .null
+  | some v => v
+
+def evalPostprocess (env : List (Ident × Lean.Json)) :
+  List (Ident × Ty × PostExpr) → List (Ident × Lean.Json)
+| [] => []
+| (x, _, e) :: ps =>
+  let v := evalPostExpr env e
+  let vs := evalPostprocess ((x, v) :: env) ps
+  (x, v) :: vs
 
 /-- Step through every result row, decoding each into its output object. -/
-partial def collectRows (stmt : SQLite.Stmt) (q : Query) (acc : Array Lean.Json) :
-    IO (Array Lean.Json) := do
+partial def collectRows (stmt : SQLite.Stmt) (q : Query) (acc : Array (List (Ident × Lean.Json))) :
+    IO (Array (List (Ident × Lean.Json))) := do
   if ← stmt.step then
-    let row ← (rowObject q).run stmt
-    collectRows stmt q (acc.push row)
+    let row ← (rowObject q.output).run stmt
+    let post := evalPostprocess row q.postprocess
+    collectRows stmt q (acc.push (row ++ post))
   else
     return acc
 
@@ -53,6 +68,9 @@ def run (db : SQLite) (D : Database) (q : Query) : IO (Except String Lean.Json) 
   | .ok sql =>
     let stmt ← db.prepare (toString sql)
     let rows ← collectRows stmt q #[]
-    return .ok (Lean.Json.arr rows)
+    return .ok (Lean.Json.arr (rows.map fieldsToJson))
+where
+  fieldsToJson (lst : List (Ident × Lean.Json)) : Lean.Json :=
+    .arr (lst.map (fun (x, j) => .arr #[.str x.name, j])).toArray
 
 end MathQL
