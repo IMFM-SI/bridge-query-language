@@ -67,6 +67,13 @@ def renderOf (j : Lean.Json) : Except String String :=
 def compiles (j : Lean.Json) : Bool :=
   (renderOf j).toOption.isSome
 
+/-- Apply a postprocessing function by name. The query harness only type-checks
+    and compiles, so implementations are reached through `functionsImpl`. -/
+def call (f : String) (args : List Lean.Json) : Lean.Json :=
+  match functionsImpl.lookup (.ident f) with
+  | some g => g args
+  | none => .null
+
 -- Well-typed queries.
 #guard elaborates (jq [("n", "g.n")] "g.planar")
 #guard elaborates (jq [("n", "g.n")] "g.n > 3")
@@ -102,7 +109,7 @@ def compiles (j : Lean.Json) : Bool :=
   | .ok s => s.endsWith "WHERE (json(\"g\".\"ds\") = json(json_array(2, 2)))"
   | .error _ => false
 
--- Postprocessing. The only built-in is `plus : (int, int) → int`.
+-- Postprocessing.
 
 -- Well-formed stages: an int literal, a bare output reference, a call.
 #guard elaborates (jqPost [("n", "g.n")] "true" [("k", "3")])
@@ -149,6 +156,12 @@ def compiles (j : Lean.Json) : Bool :=
 #guard match renderOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) with
   | .ok s => (s.splitOn "\"k\"").length == 1 && (s.splitOn "\"n\"").length > 1
   | .error _ => false
+
+-- `power` keeps its sign, and rejects a negative exponent the type cannot forbid.
+#guard call "power" [.num 2, .num 10]   == (json% 1024)
+#guard call "power" [.num (-2), .num 3] == (.num (-8) : Lean.Json)
+#guard call "power" [.num 2, .num 0]    == (json% 1)
+#guard call "power" [.num 2, .num (-1)] == Lean.Json.null
 
 -- SQL expression rendering (shown for review, not asserted).
 #eval IO.println (toString (SQL.Expr.binop .and
