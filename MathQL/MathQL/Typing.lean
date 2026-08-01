@@ -253,9 +253,12 @@ def checkPostprocess (Γ : PostContext) :
 | [] => return []
 | (x, e) :: ps => do
   let x := .ident x
-  let (t, e) ← inferPostExpr Γ e
-  let ps ← checkPostprocess {Γ with ident := (x, t) :: Γ.ident} ps
-  return (x, t, e) :: ps
+  match Γ.ident.lookup x with
+  | none =>
+    let (t, e) ← inferPostExpr Γ e
+    let ps ← checkPostprocess {Γ with ident := (x, t) :: Γ.ident} ps
+    return (x, t, e) :: ps
+  | some _ => throw s!"duplicate field {x} in postprocess"
 
 def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
   let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))

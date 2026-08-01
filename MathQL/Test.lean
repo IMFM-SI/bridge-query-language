@@ -116,6 +116,11 @@ def compiles (j : Lean.Json) : Bool :=
 -- ...but not a later one. Forward references are rejected.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(m, 1)"), ("m", "n")])
 
+-- Shadowing, both cases. `Γ.ident` is seeded with the output fields and grows by
+-- one per entry, so a single lookup before binding rejects each of these.
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("n", "3")])            -- shadows an output
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "3"), ("k", "4")]) -- rebinds an earlier entry
+
 -- Arity.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(1)")])
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(1, 2, 3)")])
