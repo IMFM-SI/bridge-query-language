@@ -4,7 +4,7 @@ import Lean.Data.Json
 
 /-! Decoding a query from its JSON form, the shape used over the MCP interface:
 `{ "domains": [[v,d],…], "output": {name: e, …}, "condition": "…",
-   "order": [["e","asc"],…], "limit": n }`.
+   "order": [["e","asc"],…], "limit": n, "postprocess": [[name,e],…] }`.
 
 The leaf instances below are where the expression parser runs and identifiers are
 validated; the `Query` decoder is then derived, composing them. `condition`,
@@ -53,6 +53,29 @@ instance : FromJson OrderEntry where
       return { expr, dir }
     | _ => throw "an order entry must be an [expression, direction] pair"
 
+/-- The `postprocess` stage: an **array** of `[name, expression]` pairs, not an
+    object like `output`.
+
+    The two differ because the entries differ. Output columns are independent of
+    one another, so their order carries no meaning and an object is the honest
+    encoding. Postprocess entries are scoped sequentially, let-chain style — each
+    may mention the outputs and any earlier postprocess field — so the order *is*
+    part of the meaning. An object could not express it: `Lean.Json` returns an
+    object's keys sorted, turning `{zeta, yankee, alpha}` into
+    `[alpha, yankee, zeta]` and silently permuting the program.
+
+    Passing an object here therefore fails in `getArr?` rather than being
+    accepted in some arbitrary order. -/
+def postprocessFromJson (j : Json) : Except String (List (String × PostExpr)) := do
+  let entries ← j.getArr?
+  entries.toList.mapM fun entry => do
+    match (← entry.getArr?).toList with
+    | [n, e] =>
+      let name ← Parsing.parseIdent (← n.getStr?)
+      let expr ← Parsing.parsePostExpr (← e.getStr?)
+      return (name, expr)
+    | _ => throw "a postprocess entry must be a [name, expression] pair"
+
 /-- Decode an optional field: absent key yields `none`. -/
 private def optField {α} [FromJson α] (j : Json) (key : String) : Except String (Option α) :=
   match j.getObjVal? key with
@@ -68,6 +91,11 @@ def Query.fromJson (j : Json) : Except String Query := do
   let condition ← optField j "condition"
   let order ← optField j "order"
   let limit ← optField j "limit"
-  return { domains, output, condition, order, limit }
+  -- Not `optField`: that decodes through `FromJson`, and the postprocess list is
+  -- decoded positionally rather than by an instance. Absent means no stage at all.
+  let postprocess ← match j.getObjVal? "postprocess" with
+    | .ok v => postprocessFromJson v
+    | .error _ => pure []
+  return { domains, output, condition, order, limit, postprocess }
 
 end MathQL.Input

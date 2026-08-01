@@ -41,6 +41,19 @@ def jqOrder (output : List (String × String)) (condition : String)
                      Lean.Json.arr #[Lean.Json.str e, Lean.Json.str d]).toArray)
   }
 
+/-- A query in JSON form like `jq`, with a `postprocess` stage. The stage is an
+    array, not an object, because its entries are sequentially scoped and their
+    order is meaningful. -/
+def jqPost (output : List (String × String)) (condition : String)
+    (post : List (String × String)) : Lean.Json :=
+  json% {
+    "domains":     [["g", "Graph"], ["h", "Graph"]],
+    "output":      $(Lean.Json.mkObj (output.map fun (a, e) => (a, Lean.Json.str e))),
+    "condition":   $(Lean.toJson condition),
+    "postprocess": $(Lean.Json.arr (post.map fun (n, e) =>
+                       Lean.Json.arr #[Lean.Json.str n, Lean.Json.str e]).toArray)
+  }
+
 /-- Does the JSON query `j` decode and type-check against `toyCtx`? -/
 def elaborates (j : Lean.Json) : Bool :=
   (Input.Query.fromJson j |>.bind (checkQuery (Context.empty toyCtx)) |>.toOption).isSome
@@ -87,6 +100,49 @@ def compiles (j : Lean.Json) : Bool :=
 -- Identifiers are quoted; list comparisons canonicalize both sides through json().
 #guard match renderOf (jq [("n", "g.n")] "g.ds == [2, 2]") with
   | .ok s => s.endsWith "WHERE (json(\"g\".\"ds\") = json(json_array(2, 2)))"
+  | .error _ => false
+
+-- Postprocessing. The only built-in is `plus : (int, int) → int`.
+
+-- Well-formed stages: an int literal, a bare output reference, a call.
+#guard elaborates (jqPost [("n", "g.n")] "true" [("k", "3")])
+#guard elaborates (jqPost [("n", "g.n")] "true" [("k", "n")])
+#guard elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")])
+#guard elaborates (jqPost [("n", "g.n")] "true" [])
+
+-- Sequential (let-chain) scoping: an entry may use any *earlier* entry.
+#guard elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)"), ("m", "plus(k, 2)")])
+
+-- ...but not a later one. Forward references are rejected.
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(m, 1)"), ("m", "n")])
+
+-- Arity.
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(1)")])
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(1, 2, 3)")])
+
+-- Argument type: `id(g)` is a String, `plus` wants Ints.
+#guard !elaborates (jqPost [("s", "id(g)")] "true" [("k", "plus(s, 1)")])
+
+-- Unknown function, and unknown identifier.
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "bogus(1, 2)")])
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(zzz, 1)")])
+
+-- `PostExpr` has no field access by construction: postprocessing sees the query's
+-- output columns, never its domain variables.
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "g.n")])
+
+-- An object is rejected outright rather than accepted in sorted key order.
+#guard !elaborates (json% {
+  "domains":     [["g", "Graph"]],
+  "output":      {"n": "g.n"},
+  "condition":   "true",
+  "postprocess": {"k": "plus(n, 1)"}
+})
+
+-- Postprocess fields are computed after SQL, so the stage contributes no alias to
+-- the query: `"n"` is selected, `"k"` appears nowhere in the rendered SQL.
+#guard match renderOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) with
+  | .ok s => (s.splitOn "\"k\"").length == 1 && (s.splitOn "\"n\"").length > 1
   | .error _ => false
 
 -- SQL expression rendering (shown for review, not asserted).
