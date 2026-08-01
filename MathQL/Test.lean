@@ -163,6 +163,28 @@ def call (f : String) (args : List Lean.Json) : Lean.Json :=
 #guard call "power" [.num 2, .num 0]    == (json% 1)
 #guard call "power" [.num 2, .num (-1)] == Lean.Json.null
 
+-- Factorization: ascending (prime, multiplicity) pairs.
+#guard call "factorize" [.num 12]   == (json% [[2,2],[3,1]])
+#guard call "factorize" [.num 360]  == (json% [[2,3],[3,2],[5,1]])
+#guard call "factorize" [.num 1024] == (json% [[2,10]])
+#guard call "factorize" [.num 2310] == (json% [[2,1],[3,1],[5,1],[7,1],[11,1]])
+
+-- A prime factors as itself, recovered by the tail case rather than by a test.
+#guard call "factorize" [.num 97]     == (json% [[97,1]])
+#guard call "factorize" [.num 999983] == (json% [[999983,1]])
+
+-- 1 has no factors; 0 is guarded, since every candidate divides it.
+#guard call "factorize" [.num 1] == (json% [])
+#guard call "factorize" [.num 0] == Lean.Json.null
+
+-- A negative is rejected at runtime by `getNat?`, wrong arity by the pattern match.
+#guard call "factorize" [.num (-5)] == Lean.Json.null
+#guard call "factorize" [.num 4, .num 5] == Lean.Json.null
+
+-- `factorize` type-checks at `list (int × int)`, so it is not an Int.
+#guard elaborates (jqPost [("n", "g.n")] "true" [("f", "factorize(n)")])
+#guard !elaborates (jqPost [("n", "g.n")] "true" [("f", "plus(factorize(n), 1)")])
+
 -- SQL expression rendering (shown for review, not asserted).
 #eval IO.println (toString (SQL.Expr.binop .and
   (.compare .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))

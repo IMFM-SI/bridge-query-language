@@ -55,12 +55,40 @@ private def power : List Lean.Json → Lean.Json
   | _, _ => .null
 | _ => .null
 
+/-- `factorize : int → list (int × int)` — the prime factorisation of a positive
+    integer, as (prime, multiplicity) pairs in ascending order.
+
+    The argument is read with `getNat?`, so a negative is rejected before the
+    loop ever runs. `0` still has to be guarded.
+
+    As with `power`, `Ty` has no natural-number type, so the declared signature
+    can only say `int` and `factorize(-5)` type-checks but evaluates to `.null`. -/
+private partial def factorize : List Lean.Json → Lean.Json
+| [a] =>
+  match a.getNat? with
+  | .ok n =>
+    if n == 0 then .null
+    else .arr ((go n 2 []).map (fun (p, k) => Lean.Json.arr #[.num p, .num k])).toArray
+  | _ => .null
+| _ => .null
+where
+  divideOut (n p k : Nat) : Nat × Nat :=
+    if n % p == 0 then divideOut (n / p) p (k + 1)
+    else (n, k)
+  go (n p : Nat) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    if p * p > n then
+      if n > 1 then acc ++ [(n, 1)] else acc
+    else
+      let (n', k) := divideOut n p 0
+      go n' (if p == 2 then 3 else p + 2) (if k > 0 then acc ++ [(p, k)] else acc)
+
 def functions : List (Ident × List Ty × Ty × (List Lean.Json → Lean.Json)) :=
 [
   (.ident "plus", [.int, .int], .int, plus),
   (.ident "minus", [.int, .int], .int, minus),
   (.ident "times", [.int, .int], .int, times),
-  (.ident "power", [.int, .int], .int, power)
+  (.ident "power", [.int, .int], .int, power),
+  (.ident "factorize", [.int], .list (.prod [.int, .int]), factorize)
 ]
 
 def functionsTy : List (Ident × (List Ty × Ty)) :=
