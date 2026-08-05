@@ -2,8 +2,14 @@ import MathQL
 
 open MathQL
 
+/-- `plus : (int, int) → int`. -/
+def plus : List Lean.Json → Result Lean.Json
+  | [a, b] => do return .num ((← a.getInt?) + (← b.getInt?))
+  | _ => throw "plus expects two arguments"
+
 /-- A toy database for exercising the parser, type-checker, and compiler: one
-domain `Graph` with a string primary key and two fields. -/
+domain `Graph` with a string primary key and three fields, one SQL function whose
+SQL name differs from its MathQL name, and one postprocessing function. -/
 def toyDB : Database where
   overview := "toy"
   const := []
@@ -17,9 +23,9 @@ def toyDB : Database where
            (.label "ds", { column := "ds", ty := .list .int, isPrimary := false, doc := "" })]
         foreignKey := []
         doc := "" })]
+  sqlFunction := [(.ident "size", ([.string], .int), "length")]
+  postFunction := [(.ident "plus", ([.int, .int], .int), plus)]
   examples := []
-
-def toyCtx : DomainContext := toyDB.getDomainContext
 
 /-- A query in JSON form binding `g` and `h` to `Graph`, with the given output
     (alias, expression) pairs and condition. -/
@@ -54,25 +60,32 @@ def jqPost (output : List (String × String)) (condition : String)
                        Lean.Json.arr #[Lean.Json.str n, Lean.Json.str e]).toArray)
   }
 
-/-- Does the JSON query `j` decode and type-check against `toyCtx`? -/
+/-- Does the JSON query `j` decode and type-check against `toyDB`? -/
 def elaborates (j : Lean.Json) : Bool :=
-  (Input.Query.fromJson j |>.bind (checkQuery (Context.empty toyCtx)) |>.toOption).isSome
+  (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).isSome
 
 /-- The SQL text of the JSON query `j` against `toyDB`, or the error. -/
 def renderOf (j : Lean.Json) : Except String String :=
-  Input.Query.fromJson j |>.bind (checkQuery (Context.empty toyCtx))
+  Input.Query.fromJson j |>.bind (checkQuery toyDB)
     |>.bind (compileQuery toyDB) |>.map toString
 
 /-- Does the JSON query `j` decode, type-check, and compile against `toyDB`? -/
 def compiles (j : Lean.Json) : Bool :=
   (renderOf j).toOption.isSome
 
-/-- Apply a postprocessing function by name. The query harness only type-checks
-    and compiles, so implementations are reached through `functionsImpl`. -/
-def call (f : String) (args : List Lean.Json) : Lean.Json :=
-  match functionsImpl.lookup (.ident f) with
-  | some g => g args
-  | none => .null
+/-- The result of comparing `a` and `b` at type `t`, or `none` if it failed. -/
+def comparison (op : ComparisonOp) (t : Ty) (a b : Lean.Json) : Option Lean.Json :=
+  (evalComparison op t a b).toOption
+
+/-- The postprocess fields of the JSON query `j`, evaluated over the output row
+    `row`, or `none` if `j` does not type-check. -/
+def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
+    Option (List (String × Lean.Json)) :=
+  (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).map fun q =>
+    (evalPostprocess
+      { ident := row.map fun (r : String × Lean.Json) => (.ident r.1, r.2)
+        function := toyDB.postFunction.map fun (f, _, impl) => (f, impl) }
+      q.postprocess).map fun (p : Ident × Lean.Json) => (p.1.name, p.2)
 
 -- Well-typed queries.
 #guard elaborates (jq [("n", "g.n")] "g.planar")
@@ -96,9 +109,6 @@ def call (f : String) (args : List Lean.Json) : Lean.Json :=
 -- `id` is an ordinary identifier: an output column named `id` is orderable.
 #guard compiles (jqOrder [("id", "g.n")] "true" [("id", "desc")])
 
--- `foo(3)` is not syntax; only `id(e)` is.
-#guard !elaborates (jq [("n", "foo(3)")] "true")
-
 -- The alias renders bare (but quoted) in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
   | .ok s => s.endsWith "ORDER BY \"m\" DESC"
@@ -108,6 +118,27 @@ def call (f : String) (args : List Lean.Json) : Lean.Json :=
 #guard match renderOf (jq [("n", "g.n")] "g.ds == [2, 2]") with
   | .ok s => s.endsWith "WHERE (json(\"g\".\"ds\") = json(json_array(2, 2)))"
   | .error _ => false
+
+-- Function calls.
+
+-- A call compiles to the SQL name registered for it, not to its MathQL name.
+#guard match renderOf (jq [("n", "g.n")] "size(g.graph6) > 2") with
+  | .ok s => s.endsWith "WHERE (\"length\"(\"g\".\"graph6\") > 2)"
+  | .error _ => false
+
+-- A call is an ordinary expression: it nests, and it may be an output column.
+#guard compiles (jq [("k", "size(g.graph6)")] "size(g.graph6) > size('ab')")
+
+-- The two function tables are disjoint, so each name is callable on one side
+-- only: `size` compiles to SQL, `plus` runs in Lean.
+#guard !elaborates (jq [("n", "g.n")] "plus(g.n, 1) > 3")
+#guard !elaborates (jqPost [("s", "id(g)")] "true" [("k", "size(s)")])
+
+-- Argument types and arity are checked at a call.
+#guard !elaborates (jq [("n", "g.n")] "size(g.n) > 2")
+
+-- `foo(3)` parses; the SQL function table is what rejects it.
+#guard !elaborates (jq [("n", "foo(3)")] "true")
 
 -- Postprocessing.
 
@@ -139,8 +170,8 @@ def call (f : String) (args : List Lean.Json) : Lean.Json :=
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "bogus(1, 2)")])
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(zzz, 1)")])
 
--- `PostExpr` has no field access by construction: postprocessing sees the query's
--- output columns, never its domain variables.
+-- Postprocessing sees the query's output columns and never its domain variables,
+-- since its context carries no domains.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "g.n")])
 
 -- An object is rejected outright rather than accepted in sorted key order.
@@ -157,33 +188,39 @@ def call (f : String) (args : List Lean.Json) : Lean.Json :=
   | .ok s => (s.splitOn "\"k\"").length == 1 && (s.splitOn "\"n\"").length > 1
   | .error _ => false
 
--- `power` keeps its sign, and rejects a negative exponent the type cannot forbid.
-#guard call "power" [.num 2, .num 10]   == (json% 1024)
-#guard call "power" [.num (-2), .num 3] == (.num (-8) : Lean.Json)
-#guard call "power" [.num 2, .num 0]    == (json% 1)
-#guard call "power" [.num 2, .num (-1)] == Lean.Json.null
+-- Postprocessing evaluation, over a row supplied directly.
 
--- Factorization: ascending (prime, multiplicity) pairs.
-#guard call "factorize" [.num 12]   == (json% [[2,2],[3,1]])
-#guard call "factorize" [.num 360]  == (json% [[2,3],[3,2],[5,1]])
-#guard call "factorize" [.num 1024] == (json% [[2,10]])
-#guard call "factorize" [.num 2310] == (json% [[2,1],[3,1],[5,1],[7,1],[11,1]])
+-- A call runs in Lean, on the output row.
+#guard postOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) [("n", json% 5)]
+       == some [("k", json% 6)]
 
--- A prime factors as itself, recovered by the tail case rather than by a test.
-#guard call "factorize" [.num 97]     == (json% [[97,1]])
-#guard call "factorize" [.num 999983] == (json% [[999983,1]])
+-- Each entry sees the values of the earlier ones, not just their types.
+#guard postOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)"), ("m", "k * 2")])
+         [("n", json% 5)]
+       == some [("k", json% 6), ("m", json% 12)]
 
--- 1 has no factors; 0 is guarded, since every candidate divides it.
-#guard call "factorize" [.num 1] == (json% [])
-#guard call "factorize" [.num 0] == Lean.Json.null
+-- An entry whose evaluation fails becomes null, and null propagates.
+#guard postOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)"), ("m", "k * 2")])
+         [("n", json% "not a number")]
+       == some [("k", Lean.Json.null), ("m", Lean.Json.null)]
 
--- A negative is rejected at runtime by `getNat?`, wrong arity by the pattern match.
-#guard call "factorize" [.num (-5)] == Lean.Json.null
-#guard call "factorize" [.num 4, .num 5] == Lean.Json.null
+-- Comparison is evaluated at the type the term carries, matching what the same
+-- expression compiles to in SQL: numeric at int and bool, by code point at
+-- string, and by canonical JSON text at list and prod.
+#guard comparison .lt .int (.num 2) (.num 10) == some (json% true)
+#guard comparison .lt .bool (.bool false) (.bool true) == some (json% true)
+#guard comparison .lt .string (.str "Z") (.str "a") == some (json% true)
+#guard comparison .gt (.list .int) (json% [2, 2]) (json% [2, 10]) == some (json% true)
+#guard comparison .eq (.prod [.int, .string]) (json% [1, "a"]) (json% [1, "a"]) == some (json% true)
+#guard comparison .ne (.prod [.int, .string]) (json% [1, "a"]) (json% [1, "b"]) == some (json% true)
 
--- `factorize` type-checks at `list (int × int)`, so it is not an Int.
-#guard elaborates (jqPost [("n", "g.n")] "true" [("f", "factorize(n)")])
-#guard !elaborates (jqPost [("n", "g.n")] "true" [("f", "plus(factorize(n), 1)")])
+-- A null operand makes the comparison null.
+#guard comparison .lt .int Lean.Json.null (.num 5) == some Lean.Json.null
+#guard comparison .eq .string (.str "a") Lean.Json.null == some Lean.Json.null
+
+-- A comparison at a list type, through the whole postprocess path.
+#guard postOf (jqPost [("d", "g.ds")] "true" [("b", "d == [2, 2]")]) [("d", json% [2, 2])]
+       == some [("b", json% true)]
 
 -- SQL expression rendering (shown for review, not asserted).
 #eval IO.println (toString (SQL.Expr.binop .and

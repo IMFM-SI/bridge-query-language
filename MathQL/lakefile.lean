@@ -14,5 +14,6 @@ lean_lib MathQL where
 lean_exe mathql where
   root := `Main
 
+@[default_target]
 lean_exe test where
   root := `Test

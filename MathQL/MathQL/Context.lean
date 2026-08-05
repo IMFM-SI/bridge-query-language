@@ -73,14 +73,6 @@ def Context.getInputFieldTy (Γ : Context) (d : DomainName) (l : Label) : Result
   let ft ← Γ.getInputField d l
   return ft.ty
 
-def Context.empty
-    (D : DomainContext)
-    (F : List (Ident × List Ty × Ty))
-  : Context where
-  domain := D
-  function := F
-  ident := []
-
 def Context.extendIdent (Γ : Context) (x : Ident) (t : Ty) : Context :=
   { Γ with ident := (x, .ty t) :: Γ.ident }
 
