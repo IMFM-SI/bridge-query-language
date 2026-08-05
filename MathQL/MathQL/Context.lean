@@ -86,3 +86,7 @@ def Context.extendIdent (Γ : Context) (x : Ident) (t : Ty) : Context :=
 
 def Context.extendDomainIdent (Γ : Context) (x : Ident) (d : DomainName) : Context :=
   { Γ with  ident := (x, .domain d) :: Γ.ident }
+
+/-- Extend `Γ` with the output columns, each at its declared type. -/
+def Context.extendOutput {α : Type} (Γ : Context) (output : List (Ident × Ty × α)) : Context :=
+  output.foldl (fun Γ (x, t, _) => Γ.extendIdent x t) Γ

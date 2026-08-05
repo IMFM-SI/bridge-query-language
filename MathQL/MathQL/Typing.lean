@@ -240,9 +240,8 @@ def checkQuery
   let ⟨Γ, vars⟩ ← checkDomainVars D.getSqlContext [] (q.domains.map fun b => (b.var, b.domain))
   let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
   let output ← checkOutput Γ q.output
-  let Δ := output.foldl (fun Δ (x, t, _) => Δ.extendIdent x t) Γ
-  let order ← checkOrder Δ (q.order.getD [])
-  let postprocess ← checkPostprocess D.getPostContext q.postprocess
+  let order ← checkOrder (Γ.extendOutput output) (q.order.getD [])
+  let postprocess ← checkPostprocess (D.getPostContext.extendOutput output) q.postprocess
   return { vars, condition, output, limit := q.limit, order, postprocess }
 
 end MathQL
