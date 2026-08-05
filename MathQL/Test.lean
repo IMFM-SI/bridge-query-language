@@ -99,6 +99,12 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard elaborates (jq [("g", "g.n"), ("h", "h.n")] "true")
 #guard !elaborates (jq [("n", "g.n"), ("n", "h.n")] "true")
 
+-- The domain variables are distinct.
+#guard elaborates (json% { "domains": [["g", "Graph"], ["h", "Graph"]],
+                           "output": $(entries [("n", "g.n")]) })
+#guard !elaborates (json% { "domains": [["g", "Graph"], ["g", "Graph"]],
+                            "output": $(entries [("n", "g.n")]) })
+
 -- Ill-typed queries.
 #guard !elaborates (jq [("n", "g.n")] "g.n")            -- a condition is checked at Bool
 #guard !elaborates (jq [("b", "g.bogus")] "g.planar")   -- unknown field

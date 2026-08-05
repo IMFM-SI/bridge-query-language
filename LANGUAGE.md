@@ -123,8 +123,8 @@ A query is the top-level form, submitted as JSON:
   "postprocess": [[name, e], …] }      (optional, default empty)
 ```
 
-- `domains` binds variables `x₁ ∈ D₁, …`; with more than one binding the query
-  ranges over the product of the domains (a join).
+- `domains` binds distinct variables `x₁ ∈ D₁, …`; with more than one binding the
+  query ranges over the product of the domains (a join).
 - `output` is an ordered list of `[name, e]` pairs; each name is a plain identifier,
   distinct from the other names, and names a result column whose value is the value of
   `e`. The list order is the column order of every row. Each output expression refers

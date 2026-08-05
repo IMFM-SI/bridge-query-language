@@ -208,12 +208,16 @@ def checkOutput (Γ : Context) :
       throw s!"duplicate output column {x'}"
     return (.ident x', t, e) :: rest
 
+/-- Check the domain bindings, accumulating them in `acc`. The variables are distinct, so
+one binding of a variable is in scope wherever the variable appears. -/
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
     List (String × String) → Result (Context × List (Ident × DomainName))
 | [] => return (Γ, acc.reverse)
 | (x', n') :: xns => do
   let x := .ident x'
   let n := .domain n'
+  if acc.any (fun (y, _) => y == x) then
+    throw s!"duplicate domain variable {x'}"
   match Γ.domain.lookup n with
   | .none => throw s!"unknown domain {n'}"
   | .some _ => checkDomainVars (Γ.extendDomainIdent x n) ((x, n) :: acc) xns
