@@ -1,8 +1,6 @@
-"""Tests for the MCP tool layer, with the engine stubbed out.
+"""Tests for the MCP tool layer against a stub database.
 
-The stub keeps these tests independent of the Lean build: what is under test is the
-translation between an agent's call and the engine's JSON, which is where the tool
-layer's own defects live.
+Under test: the translation between an agent's call and the request JSON.
 """
 
 import asyncio
@@ -23,7 +21,7 @@ ROWS = [
 
 
 class StubEngine:
-    """An engine that records each request and replies with `ROWS`."""
+    """A stub database that records each request and replies with `ROWS`."""
 
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
@@ -77,7 +75,7 @@ def test_output_order_is_preserved_in_the_request() -> None:
     assert engine.requests[-1]["output"] == [("zeta", "g.n"), ("alpha", "g.m")]
 
 
-def test_postprocess_reaches_the_engine() -> None:
+def test_postprocess_reaches_the_request() -> None:
     app, engine = build()
     asyncio.run(
         app.call_tool(
@@ -92,7 +90,7 @@ def test_postprocess_reaches_the_engine() -> None:
     assert engine.requests[-1]["postprocess"] == [("k", "n + 1")]
 
 
-def test_an_absent_clause_is_left_out_of_the_request() -> None:
+def test_the_request_carries_exactly_the_given_clauses() -> None:
     app, engine = build()
     asyncio.run(
         app.call_tool("query", {"domains": [["g", "Graph"]], "output": [["n", "g.n"]]})
@@ -100,7 +98,7 @@ def test_an_absent_clause_is_left_out_of_the_request() -> None:
     assert set(engine.requests[-1]) == {"domains", "output"}
 
 
-def test_a_bad_order_direction_never_reaches_the_engine() -> None:
+def test_a_bad_order_direction_is_rejected_before_the_request() -> None:
     app, engine = build()
     with pytest.raises(Exception):  # noqa: B017
         asyncio.run(
@@ -116,7 +114,7 @@ def test_a_bad_order_direction_never_reaches_the_engine() -> None:
     assert engine.requests == []
 
 
-def test_a_three_element_output_entry_never_reaches_the_engine() -> None:
+def test_a_three_element_output_entry_is_rejected_before_the_request() -> None:
     app, engine = build()
     with pytest.raises(Exception):  # noqa: B017
         asyncio.run(

@@ -35,20 +35,20 @@ private def keywords : List String :=
 /-- A literal token, skipping trailing whitespace. -/
 private def tok (s : String) : Parser Unit := do skipString s; ws
 
-/-- A raw identifier (not yet checked against keywords). -/
+/-- A raw identifier, keywords included; `ident` applies the keyword check. -/
 private def rawIdent : Parser String := do
   let c ← satisfy isIdentStart
   let cs ← manyChars (satisfy isIdentRest)
   return c.toString ++ cs
 
-/-- An identifier that is not a keyword, skipping trailing whitespace. -/
+/-- An identifier outside `keywords`, skipping trailing whitespace. -/
 private def ident : Parser String := attempt do
   let s ← rawIdent
   if keywords.contains s then fail s!"unexpected keyword '{s}'"
   ws
   return s
 
-/-- A keyword, not immediately followed by an identifier character. -/
+/-- A keyword whose following character lies outside the identifier characters. -/
 private def keyword (s : String) : Parser Unit := attempt do
   skipString s
   notFollowedBy (satisfy isIdentRest)
@@ -65,7 +65,7 @@ private def intLitNat : Parser Nat := do
   return n
 
 /-- One character of a string literal: a doubled quote `''` denotes a single
-    quote, any other non-quote character denotes itself. -/
+    quote, every character apart from `'` denotes itself. -/
 private def stringChar : Parser Char :=
   attempt (skipString "''" *> pure '\'') <|> satisfy (· != '\'')
 

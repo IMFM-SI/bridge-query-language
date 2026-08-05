@@ -2,7 +2,7 @@
 
 MathQL is a query language for databases of mathematical objects. An agent (or
 a human) asks mathematical questions about mathematical objects — graphs,
-maniplexes, and more — and the engine compiles them to SQL against whatever
+maniplexes, and more — and MathQL compiles them to SQL against whatever
 database holds those objects. The query language is defined in
 [`LANGUAGE.md`](LANGUAGE.md); the design and goals are in [`PLAN.md`](PLAN.md);
 [`docs/mathql-intro.md`](docs/mathql-intro.md) is a short introduction.
@@ -14,7 +14,7 @@ database holds those objects. The query language is defined in
 ├── LANGUAGE.md        the query language: syntax, types, typing
 ├── PLAN.md            design and implementation plan
 ├── docs/              a short introduction
-├── MathQL/            the engine — a Lean package (parser, compiler, runner)
+├── MathQL/            a Lean package: parser, compiler, runner
 ├── python/            database generation and the MCP server
 ├── data/              the databases and their descriptions
 └── lean/              earlier Lean experiments with the typed core
@@ -23,11 +23,10 @@ database holds those objects. The query language is defined in
 ## Prerequisites
 
 - **elan** (the Lean toolchain manager). Lake fetches the pinned toolchain
-  automatically; no separate Lean install is needed.
+  automatically.
 - A **C compiler** (clang or gcc) — the SQLite binding compiles a bundled copy
   of SQLite. On macOS, the Xcode Command Line Tools (`xcode-select --install`).
-- **leansqlite** — fetched automatically by Lake as a git dependency (over SSH);
-  no manual clone needed.
+- **leansqlite** — fetched automatically by Lake as a git dependency (over SSH).
 - For the MCP server: Python and the `mathql-mcp` package under `python/`, installed
   editable. It depends on **mcp** (with the `cli` extra) and **networkx**.
 - For regenerating the small-graphs database (optional): **nauty** (`geng`) and
@@ -38,7 +37,7 @@ python3 -m venv .venv && source .venv/bin/activate
 python -m pip install -e python       # the MCP server and its dependencies
 ```
 
-## Building the engine
+## Building MathQL
 
 ```
 cd MathQL
@@ -50,7 +49,7 @@ amalgamation, so it takes a few minutes; later builds are fast.
 
 ## Databases
 
-The databases live in `data/` and are not checked into git.
+The databases live in `data/`, which `.gitignore` covers.
 
 - **`graphs-small.db`** — all graphs on up to 8 vertices, with invariants.
   Generate it from the repository root:
@@ -82,13 +81,15 @@ lake exe mathql
 - A query object returns `{"rows": [...]}` or `{"error": "..."}`. For example:
 
 ```
-{"domains": [["g", "Graph"]], "output": {"g6": "id(g)", "edges": "g.num_edges"}, "condition": "g.num_vertices == 5", "order": [["edges", "desc"]], "limit": 3}
+{"domains": [["g", "Graph"]], "output": [["g6", "id(g)"], ["edges", "g.num_edges"]], "condition": "g.num_vertices == 5", "order": [["edges", "desc"]], "limit": 3}
 ```
 
-The output values, the condition, and the order entries are expressions of the
-query language. ASCII operators (`== != < <= > >=`, `&& || !`,
-`defined`/`undefined`) are recommended; the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also
-accepted.
+`output` is an ordered list of `[column name, expression]` pairs, and its order is
+the column order of every row; each row comes back as a list of `[name, value]`
+pairs. An optional `postprocess` takes the same pair form and adds further columns.
+The output, condition, order and postprocess expressions are all expressions of the
+query language. ASCII operators (`== != < <= > >=`, `&& || !`, `defined`/`undefined`)
+are recommended; the UTF-8 forms (`∧ ∨ ¬ ≤ ≥ ≠`) are also accepted.
 
 ## MCP server
 

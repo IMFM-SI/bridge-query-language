@@ -69,7 +69,7 @@ def lookupHoist (d : Domain) : CompileM (Option (Alias × DomainName)) := do
 def storeHoist (d : Domain) (a : Alias) (dn : DomainName): CompileM Unit := do
   modify fun st => { st with hoisted := (d, (a, dn)) :: st.hoisted }
 
-/-- `stem`, or the first `stemₖ` (k ≥ 2) not in `taken`; `none` if `fuel`
+/-- `stem`, or the first `stemₖ` (k ≥ 2) free of `taken`; `none` when `fuel`
     candidates are all taken. -/
 def firstFree (taken : List Alias) (stem : String) : Nat → Nat → Option String
   | 0, _ => none

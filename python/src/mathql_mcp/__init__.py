@@ -1,1 +1,1 @@
-"""MathQL MCP server: the MathQL query engine and networkx helpers as MCP tools."""
+"""MathQL MCP server: MathQL queries and networkx graph tools, as MCP tools."""

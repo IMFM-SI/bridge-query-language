@@ -8,8 +8,8 @@ def plus : List Lean.Json → Result Lean.Json
   | _ => throw "plus expects two arguments"
 
 /-- A toy database for exercising the parser, type-checker, and compiler: one
-domain `Graph` with a string primary key and three fields, one SQL function whose
-SQL name differs from its MathQL name, and one postprocessing function. -/
+domain `Graph` with a string primary key and three fields, one SQL function registered
+under a SQL name of its own, and one postprocessing function. -/
 def toyDB : Database where
   overview := "toy"
   const := []
@@ -78,7 +78,7 @@ def comparison (op : ComparisonOp) (t : Ty) (a b : Lean.Json) : Option Lean.Json
   (evalComparison op t a b).toOption
 
 /-- The postprocess fields of the JSON query `j`, evaluated over the output row
-    `row`, or `none` if `j` does not type-check. -/
+    `row`, or `none` when type-checking reports an error. -/
 def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
     Option (List (String × Lean.Json)) :=
   (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).map fun q =>
@@ -96,10 +96,10 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard elaborates (jq [("m", "Graph['abc'].n")] "Graph['abc'].n > 3")
 
 -- Ill-typed queries.
-#guard !elaborates (jq [("n", "g.n")] "g.n")            -- condition is Int, not Bool
+#guard !elaborates (jq [("n", "g.n")] "g.n")            -- a condition is checked at Bool
 #guard !elaborates (jq [("b", "g.bogus")] "g.planar")   -- unknown field
 #guard !elaborates (jq [("n", "g.n")] "g.planar + 1")   -- Bool used in arithmetic
-#guard !elaborates (jq [("n", "g.n")] "id(g) == 3")     -- id is String, not Int
+#guard !elaborates (jq [("n", "g.n")] "id(g) == 3")     -- `id` yields String, the literal Int
 #guard !elaborates (jq [("m", "g.n"), ("k", "m + 1")] "true")  -- one output referring to another
 
 -- Ordering by an output alias, bare and inside an expression.
@@ -109,7 +109,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 -- `id` is an ordinary identifier: an output column named `id` is orderable.
 #guard compiles (jqOrder [("id", "g.n")] "true" [("id", "desc")])
 
--- The alias renders bare (but quoted) in ORDER BY.
+-- The alias renders bare and quoted in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
   | .ok s => s.endsWith "ORDER BY \"m\" DESC"
   | .error _ => false
@@ -121,7 +121,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 
 -- Function calls.
 
--- A call compiles to the SQL name registered for it, not to its MathQL name.
+-- A call compiles to the SQL name registered for it.
 #guard match renderOf (jq [("n", "g.n")] "size(g.graph6) > 2") with
   | .ok s => s.endsWith "WHERE (\"length\"(\"g\".\"graph6\") > 2)"
   | .error _ => false
@@ -130,14 +130,14 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard compiles (jq [("k", "size(g.graph6)")] "size(g.graph6) > size('ab')")
 
 -- The two function tables are disjoint, so each name is callable on one side
--- only: `size` compiles to SQL, `plus` runs in Lean.
+-- only: `size` compiles to SQL, `plus` runs during postprocessing.
 #guard !elaborates (jq [("n", "g.n")] "plus(g.n, 1) > 3")
 #guard !elaborates (jqPost [("s", "id(g)")] "true" [("k", "size(s)")])
 
 -- Argument types and arity are checked at a call.
 #guard !elaborates (jq [("n", "g.n")] "size(g.n) > 2")
 
--- `foo(3)` parses; the SQL function table is what rejects it.
+-- `foo(3)` parses; the checker looks `foo` up in the SQL function table.
 #guard !elaborates (jq [("n", "foo(3)")] "true")
 
 -- Postprocessing.
@@ -151,7 +151,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 -- Sequential (let-chain) scoping: an entry may use any *earlier* entry.
 #guard elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)"), ("m", "plus(k, 2)")])
 
--- ...but not a later one. Forward references are rejected.
+-- The checker rejects a forward reference.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(m, 1)"), ("m", "n")])
 
 -- Shadowing, both cases. `Γ.ident` is seeded with the output fields and grows by
@@ -170,12 +170,11 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "bogus(1, 2)")])
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "plus(zzz, 1)")])
 
--- Postprocessing sees the query's output columns and never its domain variables,
--- since its context carries no domains.
+-- Postprocessing sees the query's output columns; its context holds those columns
+-- alone, so `g.n` is an error here.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "g.n")])
 
--- Both clauses are arrays: an object is rejected outright rather than accepted in
--- sorted key order.
+-- Both clauses are arrays: the decoder requires an array and reports an object.
 #guard !elaborates (json% {
   "domains":     [["g", "Graph"]],
   "output":      [["n", "g.n"]],
@@ -188,25 +187,24 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
   "condition": "true"
 })
 
--- Output columns keep the order they were written in, which an object could not
--- express: `Lean.Json` returns an object's keys sorted.
+-- Output columns keep the order they were written in; `Lean.Json` returns an
+-- object's keys sorted.
 #guard match renderOf (jq [("zeta", "g.n"), ("alpha", "g.n")] "true") with
   | .ok s => s.startsWith "SELECT \"g\".\"n\" AS \"zeta\", \"g\".\"n\" AS \"alpha\""
   | .error _ => false
 
--- Postprocess fields are computed after SQL, so the stage contributes no alias to
--- the query: `"n"` is selected, `"k"` appears nowhere in the rendered SQL.
+-- Postprocess fields are computed after SQL: the rendered SQL selects `"n"` alone.
 #guard match renderOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) with
   | .ok s => (s.splitOn "\"k\"").length == 1 && (s.splitOn "\"n\"").length > 1
   | .error _ => false
 
 -- Postprocessing evaluation, over a row supplied directly.
 
--- A call runs in Lean, on the output row.
+-- A call runs during postprocessing, on the output row.
 #guard postOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) [("n", json% 5)]
        == some [("k", json% 6)]
 
--- Each entry sees the values of the earlier ones, not just their types.
+-- Each entry sees the values of the earlier ones.
 #guard postOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)"), ("m", "k * 2")])
          [("n", json% 5)]
        == some [("k", json% 6), ("m", json% 12)]
@@ -252,7 +250,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard postOf (jqPost [("n", "g.n")] "true" [("k", "undefined n")]) [("n", Lean.Json.null)]
        == some [("k", json% true)]
 
--- SQL expression rendering (shown for review, not asserted).
+-- SQL expression rendering, printed for review.
 #eval IO.println (toString (SQL.Expr.binop .and
   (.compare .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))
 

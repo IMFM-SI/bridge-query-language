@@ -16,13 +16,13 @@ Then, from the repository root:
 
 ```
 python python/generate_graphs.py        # all graphs on up to 8 vertices
-python python/generate_graphs.py 6      # up to 6 vertices instead
+python python/generate_graphs.py 6      # up to 6 vertices
 ```
 
 The script runs `geng n` for n = 1 … N, builds each graph in networkx,
-computes the invariants, and writes them to `data/graphs-small.db`. It
-**refuses to overwrite** an existing database — delete the file first to
-regenerate. The set of invariants is the `INVARIANTS` list in the script; the
+computes the invariants, and writes them to `data/graphs-small.db`. Delete an
+existing database before regenerating. The set of invariants is the `INVARIANTS`
+list in the script; the
 table schema is derived from it, so adding or removing a column is a one-line
 edit.
 

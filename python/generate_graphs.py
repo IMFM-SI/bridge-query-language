@@ -24,7 +24,7 @@ GENG = "geng"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "graphs-small.db"
 
 
-# --- invariants not provided directly by networkx ---
+# --- invariants computed here ---
 
 def girth(graph: nx.Graph) -> int | None:
     """Length of a shortest cycle, or None if the graph is acyclic."""

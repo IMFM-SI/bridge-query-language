@@ -195,7 +195,7 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-/-- Check the output fields, each in `Γ`: one output may not refer to another. -/
+/-- Check each output field in `Γ`, the context of the domain variables. -/
 def checkOutput (Γ : Context) :
     List (String × Input.Expr) → Result (List (Ident × Ty × Expr))
   | [] => return []

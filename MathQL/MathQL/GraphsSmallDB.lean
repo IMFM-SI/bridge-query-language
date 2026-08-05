@@ -72,7 +72,8 @@ def graphDomain : Schema where
   column := graphColumns.map fun (name, ty, doc) =>
     (.label name, { column := name, ty, isPrimary := name == "graph6", doc })
   foreignKey := []
-  doc := "A finite simple graph (no loops or multiple edges), up to isomorphism."
+  doc := "A finite simple graph: each edge joins two distinct vertices, at most \
+    one edge per pair, up to isomorphism."
 
 /-- The `graphs-small.db` database: one domain, `Graph`. -/
 def database : Database where

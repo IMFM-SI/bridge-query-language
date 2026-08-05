@@ -27,10 +27,9 @@ syntax and operator precedence of expressions are in
     | τ₁ × ⋯ × τₙ                 product (n = 0 is the unit type)
 ```
 
-There is no option type, and there are no named record or enumeration *types*: a
-type is a finite tree over scalars, lists, and products. Domains are named — they
-are what a variable ranges over — and a database may declare named *constants*, but
-neither is a type in this grammar.
+A type is a finite tree over scalars, lists, and products. Domains are named — they
+are what a variable ranges over — and a database may declare named *constants*; the
+types are exactly those of the grammar above.
 
 `Int`, `Bool`, and `String` are the scalar types, stored as ordinary columns. `List τ`
 and products are realized as JSON arrays (see *Realization*), so they too may appear in
@@ -49,8 +48,8 @@ o ::= x                                                -- a bound variable
 
 A bound variable denotes the object it ranges over; a *domain field* `o.ℓ` follows
 a link to an object of another domain; and `D[e₁, …, eₙ]` denotes the object of `D`
-whose primary key is `(e₁, …, eₙ)`. An object is not a value: it appears only as
-the head of a projection or under `id`.
+whose primary key is `(e₁, …, eₙ)`. An object appears only as the head of a
+projection or under `id`.
 
 The value expressions are:
 
@@ -59,6 +58,7 @@ e ::= n | 's' | true | false                          -- literals
     | o.ℓ                                              -- an input field of an object
     | id(o)                                            -- an object's primary key
     | c                                                -- a named constant
+    | f(e₁, …, eₙ)                                      -- a function the database declares
     | - e | e + e | e - e | e * e                      -- arithmetic (Int)
     | ¬ e | e ∧ e | e ∨ e                              -- logic (Bool)
     | e = e | e ≠ e | e < e | e ≤ e | e > e | e ≥ e    -- comparison
@@ -76,8 +76,8 @@ ASCII synonyms: `∧`=`&&`, `∨`=`||`, `¬`=`!`, `≤`=`<=`, `≥`=`>=`, `≠`=
 The judgement is bidirectional: synthesis `Γ ⊢ e ⇒ τ` computes a type, checking
 `Γ ⊢ e ⇐ τ` checks against a given one; a companion judgement `Γ ⊢ o ⇒ D` assigns
 each object-denoting expression its domain. The context `Γ` records the bound
-variables (each with its domain) and the database's constants. `Typing.lean`
-implements the three modes against the declarative rules in `Rules.lean`:
+variables (each with its domain) and the database's constants. The three modes are
+implemented in `Typing.lean`, against the declarative rules in `Rules.lean`:
 
 - **literals** — `n ⇒ Int`, `'s' ⇒ String`, `true`/`false ⇒ Bool`.
 - **variable** — if `x` is bound to domain `D`, then `x ⇒ D`.
@@ -90,6 +90,8 @@ implements the three modes against the declarative rules in `Rules.lean`:
 - **id** — if `o ⇒ D` and `D`'s primary key has types `τ₁, …, τₙ`, then
   `id(o) ⇒ τ₁ × ⋯ × τₙ`; a single-column key elides the product.
 - **constant** — if the database declares `c : τ`, then `c ⇒ τ`.
+- **function** — if the database declares `f : τ₁, …, τₙ → τ` for the clause being
+  checked, then `f(e₁, …, eₙ) ⇒ τ` with each `eᵢ ⇐ τᵢ`.
 - **arithmetic** — `- e ⇒ Int` with `e ⇐ Int`; `e₁ ⊙ e₂ ⇒ Int` for `⊙ ∈ {+,-,*}`,
   both `⇐ Int`.
 - **logic** — `¬ e ⇒ Bool` with `e ⇐ Bool`; `e₁ ⊙ e₂ ⇒ Bool` for `⊙ ∈ {∧,∨}`, both
@@ -113,36 +115,48 @@ arrays.
 A query is the top-level form, submitted as JSON:
 
 ```
-{ "domains":   [[x, D], …],          (required)
-  "output":    { name: e, … },       (required)
-  "condition": e,                    (optional, default true)
-  "order":     [[e, dir], …],        (optional; dir is "asc" or "desc")
-  "limit":     n }                   (optional)
+{ "domains":     [[x, D], …],          (required)
+  "output":      [[name, e], …],       (required)
+  "condition":   e,                    (optional, default true)
+  "order":       [[e, dir], …],        (optional; dir is "asc" or "desc")
+  "limit":       n,                    (optional)
+  "postprocess": [[name, e], …] }      (optional, default empty)
 ```
 
 - `domains` binds variables `x₁ ∈ D₁, …`; with more than one binding the query
   ranges over the product of the domains (a join).
-- `output` maps each result column name (a plain identifier) to the expression
-  whose value that column returns. The output expressions are independent of one
-  another: one may not refer to another's column name.
+- `output` is an ordered list of `[name, e]` pairs; each name is a plain identifier
+  and names a result column whose value is the value of `e`. The list order is the
+  column order of every row. Each output expression refers to the bound variables.
 - `condition` is an expression of type `Bool` over the bound variables.
 - `order` sorts by expressions, each ascending or descending; an order expression
   may refer to the output columns by name.
 - `limit` caps the number of rows.
+- `postprocess` is an ordered list of `[name, e]` pairs, each appended to every row as
+  a further column. Each expression refers to the output columns and to the entries
+  preceding it, and each name is distinct from the output column names and from the
+  names of the other entries.
+
+The `postprocess` entries are evaluated outside the database by the server.
 
 A query returns a list of rows — one per combination of objects satisfying the
-condition, in the requested order, capped by `limit`. Each row is a JSON object
-keyed by the output column names.
+condition, in the requested order, capped by `limit`. Each row is a list of
+`[name, value]` pairs: the output columns in the order `output` names them, then the
+postprocess columns in the order `postprocess` names them.
 
 ## Absence
 
 A possibly-absent invariant keeps its scalar type — `diameter : Int` — and may be
-absent for a given object (a `NULL` column). There is no option type and no `match`;
-absence is observed only through `defined e` and `undefined e`, which compile to SQL
-`IS NOT NULL` / `IS NULL`. A comparison against an absent value is neither true nor
-false (SQL's three-valued logic), so such a row is dropped from the result. An
-object can be absent too — a domain field or a `D[…]` that matches no row — and
-`defined id(o)` / `undefined id(o)` test the row's presence.
+absent for a given object (a `NULL` column). Absence is observed only through
+`defined e` and `undefined e`, which compile to SQL `IS NOT NULL` / `IS NULL`. A
+comparison against an absent value yields SQL's unknown (three-valued logic), so such
+a row is dropped from the result. An object can be absent too — a domain field or a
+`D[…]` whose row is absent — and `defined id(o)` / `undefined id(o)` test the row's
+presence.
+
+In `postprocess` the same two forms test the decoded value: `defined e` is `true` when
+`e` evaluates to a value other than JSON `null`, and `false` when `e` evaluates to
+`null` and when evaluating `e` fails.
 
 ## Realization
 
@@ -153,6 +167,8 @@ A database connects the language to storage. It maps:
 - a **domain field** → a foreign key, compiled to a `LEFT JOIN` of the linked
   table, one join shared by equal object expressions;
 - a **constant** → a fixed SQL expression;
+- a **function** available in the compiled clauses → the SQL function the database
+  names for it;
 - a query's **condition** → a SQL `WHERE`; its **output** → selected expressions
   under their column aliases, each result cell decoded at its declared type; its
   **order** → `ORDER BY`, where a reference to an output column renders as the bare
@@ -169,5 +185,7 @@ MathQL is a standalone Lean package. Expressions are parsed by a parser combinat
 elaborated by the bidirectional judgement into an intrinsically-typed `Expr`
 (`Rules.lean`, `Typing.lean`), so ill-typed queries are rejected; and it is
 compiled to a single SQL `SELECT` (`Compile.lean`, `SQL.lean`). The result cells
-are decoded at their declared types into JSON (`Execute.lean`). Every construct
-that reaches the database has a SQL image; there is no separate evaluator.
+are decoded at their declared types into JSON (`Execute.lean`). One `Expr` serves
+every clause under two interpretations: `compileExpr` gives the SQL image of the
+condition, the output and the order, and `evalPostExpr` evaluates a postprocess entry
+over the decoded row.

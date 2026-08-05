@@ -1,7 +1,7 @@
 """networkx-backed tools that decode a graph6 string into structure.
 
-These run on the Python side after the engine returns rows, so they decode and inspect
-a graph; they are not queryable fields. Vertices are numbered 0..n-1.
+These decode and inspect a `graph6` string returned by a query. Vertices are numbered
+0..n-1.
 """
 
 from typing import Any
@@ -18,7 +18,7 @@ def register(mcp: FastMCP) -> None:
         """Decode a graph6 string to its edge list.
 
         Returns {"num_vertices": n, "edges": [[u, v], ...]} with vertices 0..n-1; the
-        vertex count is included so isolated vertices are not lost.
+        vertex count is included so that isolated vertices are counted.
         """
         g = networkx.from_graph6_bytes(graph6.encode())
         return {
@@ -36,8 +36,8 @@ def register(mcp: FastMCP) -> None:
     def shortest_path(graph6: str, source: int, target: int) -> dict[str, Any]:
         """A shortest path between `source` and `target` (0-indexed).
 
-        Returns {"length": k, "path": [source, ..., target]}; "path" is absent and
-        "length" is null when the two vertices lie in different components.
+        Two vertices in one component give {"length": k, "path": [source, ..., target]};
+        two vertices in different components give {"length": null}.
         """
         g = networkx.from_graph6_bytes(graph6.encode())
         if networkx.has_path(g, source, target):
@@ -77,8 +77,8 @@ def register(mcp: FastMCP) -> None:
         """A proper vertex coloring, computed greedily (DSATUR).
 
         Returns {"num_colors": k, "coloring": [[vertex, color], ...]} with colors
-        0..k-1. The coloring is proper but heuristic: it may use more colors than the
-        graph's chromatic number.
+        0..k-1. The coloring is proper; the color count may exceed the graph's
+        chromatic number.
         """
         g = networkx.from_graph6_bytes(graph6.encode())
         colors = networkx.greedy_color(g, strategy="DSATUR")

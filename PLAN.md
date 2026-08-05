@@ -7,11 +7,11 @@ Its primary users are AI agents, which will reach the databases through MCP
 by issuing queries in this language; humans should be able to write it too.
 
 There will be many databases. Some live locally, some sit behind a network,
-and some need not be stored anywhere at all — we may one day expose a database
+and some exist only while a query runs — we may one day expose a database
 that a tool *generates on the fly* (for example, enumerating graphs with
 nauty and computing their invariants on demand). The query language is the
-single interface that unifies all of them; nothing in it assumes that a query
-hits a stored table.
+single interface that unifies all of them; it applies alike to stored and to
+generated databases.
 
 ## The interface is mathematical
 
@@ -87,8 +87,8 @@ from the maniplex table to the graph table along a foreign key.
 
 ## Typing
 
-Every query is well-typed, but the type system stays simple: a handful of
-ground types (integers, booleans, strings, and structured values such as
+Every query is well-typed; the type system stays simple, with a handful of ground
+types (integers, booleans, strings, and structured values such as
 lists or polynomials carried as JSON), products for tuples, comparison and
 arithmetic operations over them. Ill-typed queries — comparing a boolean to an
 integer, naming an unknown invariant — are rejected with a readable error the
@@ -111,13 +111,14 @@ the set of invariants the terms mention, the compiler:
   functions;
 - renders the resulting objects in the chosen representation.
 
-Every construct of the language has a SQL image, so the engine needs no
-independent evaluator.
+The condition, the output and the order have a SQL image and are evaluated by the
+database. The postprocess entries are evaluated over the returned rows, outside the
+database.
 
 ## The schema descriptor
 
-A database is described in a standard way — a schema descriptor — that the query
-language consumes. The descriptor maps each **mathematical invariant name** to
+A database is described in a standard way — a schema descriptor — read when a
+query is compiled. The descriptor maps each **mathematical invariant name** to
 how that invariant is *computed*: which table and column hold it, what join path
 reaches it, and what codec decodes the stored value (e.g. JSON text → a list).
 It also declares
@@ -127,17 +128,17 @@ plan.
 
 ## Delivery
 
-The engine — parser, type-checker, SQL translation, rendering — is independent
-of how queries arrive. We will exercise it first
-behind a plain command-line interface, then wrap it in an MCP server that
+Parsing, type-checking, SQL translation and rendering are independent of how
+queries arrive. We will exercise them first behind a plain command-line interface,
+then wrap them in an MCP server that
 exposes two tools: `query`, taking a query and returning rendered objects, and
 `describe_schema`, returning a domain's objects, invariants with their types,
 and available representations, so an agent can learn what it may ask before it
-asks. MCP is then a thin adapter over the engine.
+asks. MCP is then a thin adapter over the `mathql` executable.
 
 ## Implementation
 
-The engine is implemented in **Lean**; the full language is defined in
+MathQL is implemented in **Lean**; the full language is defined in
 [`LANGUAGE.md`](LANGUAGE.md). **Python** generates the databases (`nauty` +
 `networkx`) and hosts a thin MCP server that forwards to the Lean executable.
 SQLite is reached through the **leansqlite** FFI binding; the project's Lean
@@ -145,7 +146,7 @@ toolchain is conformed to leansqlite's.
 
 Architecture:
 
-- **Lean executable `mathql`** — the engine: parse → elaborate to `Tm` →
+- **Lean executable `mathql`** — parse → elaborate to `Tm` →
   compile to SQL → run via leansqlite → decode and render. Two modes: a one-shot
   CLI (`mathql "<query>"`) and a serve mode that
   reads queries and writes JSON for the MCP server to drive.
@@ -155,8 +156,8 @@ Architecture:
 
 Steps (each a commit; carried out after this file is reviewed):
 
-0. **(needs you)** Provide what I cannot fetch myself: a fork or repository URL
-   of leansqlite to depend on, and confirmation that I may add it to the
+0. **(needs you)** Provide the following: a fork or repository URL of leansqlite
+   to depend on, and confirmation that I may add it to the
    lakefile and move the Lean toolchain to match it. Confirm both databases are
    present under `data/` (`graphs-small.db` generated, `sym-ob-small.db`
    downloaded). Note anything else I will need (GAP, credentials, …).
@@ -177,7 +178,7 @@ Steps (each a commit; carried out after this file is reviewed):
 4. **Compiler** — `Tm` / query → SQL with bound parameters: the condition to a
    `WHERE` clause, the returned term to selected columns.
 
-5. **Engine** — run the SQL through leansqlite, decode rows by codec, and render
+5. **Execution** — run the SQL through leansqlite, decode rows by codec, and render
    the resulting objects.
 
 6. **CLI and serve mode** — `mathql "<query>"` and the protocol the MCP server

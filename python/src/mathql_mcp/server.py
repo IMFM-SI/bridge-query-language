@@ -1,4 +1,4 @@
-"""The MathQL MCP server: wire the engines and tools into a FastMCP app.
+"""The MathQL MCP server: wire the databases and tools into a FastMCP app.
 
 Run via the `mathql-mcp` console script (after `pip install -e python`), or point an
 MCP client at it. The repository paths below assume an editable install from the repo.
@@ -23,7 +23,7 @@ DATABASES = [
 
 
 def build() -> FastMCP:
-    """Build the FastMCP app: one engine per available database, tools registered."""
+    """Build the FastMCP app: one subprocess per available database, tools registered."""
     engines = {
         name: Engine(MATHQL_DIR, name, path) for name, path in DATABASES if path.exists()
     }

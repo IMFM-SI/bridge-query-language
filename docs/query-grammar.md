@@ -31,12 +31,12 @@ A query is a JSON object:
   by name.
 - `limit` (optional) bounds the number of rows returned.
 - `postprocess` (optional, default empty) is an ordered list of `[name, expression]`
-  pairs, each appended to every row as a further column, evaluated after the database
-  returns the rows. Each name is a plain identifier, distinct from the output column
-  names and from the names of the other entries. Each expression may refer to the
-  output columns and to the entries preceding it, so the list order determines the
-  names in scope. A postprocess column whose expression fails to evaluate has the
-  value `null`.
+  pairs, each appended to every row as a further column, evaluated outside the
+  database after it returns the rows. Each name is a plain identifier, distinct from
+  the output column names and from the names of the other entries. Each expression may
+  refer to the output columns and to the entries preceding it, so the list order
+  determines the names in scope. A postprocess column whose expression fails to
+  evaluate has the value `null`.
 
 ## Results
 
@@ -78,7 +78,7 @@ type ::= "int"
 - a product `τ₁ * … * τₙ` — a tuple of components of the given types; the nullary
   product is the unit type.
 
-Types are never written down in a query, but may appear in error messages.
+A query is written without type annotations; types appear in error messages.
 
 ## Expressions
 
@@ -121,8 +121,8 @@ expr ::= "if" expr "then" expr "else" expr
 ```
 
 A `variable`, an `expr . field` on a domain field, and a `domain[…]` denote
-*objects*, not scalars; they appear only under `id` or as the head of a further
-projection. A query that returns or compares a bare object is ill-typed.
+*objects*; they appear only under `id` or as the head of a further projection. A
+query that returns or compares a bare object is ill-typed.
 
 The meaning and types of the above expressions is as follows:
 
@@ -144,8 +144,8 @@ The meaning and types of the above expressions is as follows:
   column's value; otherwise the tuple of its components.
 - `f(e₁, …, eₙ)` — the function `f` applied to the given arguments; its type is `f`'s
   declared result type. Each database declares its functions in two groups: those
-  available in `condition`, `output` and `order`, which the database evaluates, and
-  those available in `postprocess`.
+  available in `condition`, `output` and `order`, and those available in
+  `postprocess`.
 - `e.i` — the `i`-th component (counting from zero) of the tuple `e`; its type is
   that component's type.
 - `42` – integer literal of type `int`

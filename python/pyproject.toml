@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mathql-mcp"
 version = "0.1.0"
-description = "MCP server exposing the MathQL query engine for databases of mathematical objects"
+description = "MCP server exposing MathQL queries over databases of mathematical objects"
 readme = "../README.md"
 requires-python = ">=3.10"
 dependencies = [

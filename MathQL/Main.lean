@@ -4,11 +4,11 @@ import MathQL.GraphsSmallDB
 import MathQL.SymObSmallDB
 import MathQL
 
-/-! The `mathql` executable: a persistent query engine driven over stdin/stdout.
+/-! The `mathql` executable: a persistent process answering queries over stdin/stdout.
 
 It opens the database once, then reads one JSON request per line and writes one
 JSON response per line: `{"rows": …}` on success, `{"error": …}` on failure. This
-is the transport the Python MCP server (`python/src/mathql_mcp`) speaks to. -/
+is the transport the MCP server (`python/src/mathql_mcp`) speaks to. -/
 
 open MathQL
 

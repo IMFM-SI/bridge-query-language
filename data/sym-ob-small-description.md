@@ -8,7 +8,7 @@ The database can be downloaded from
 
 ## What these objects are
 
-This section explains basic vocabulary about polytopes.
+Basic vocabulary about polytopes follows.
 
 **Abstract polytopes.** Start with a cube. Its *faces*, in the broad
 sense, are its 8 vertices, 12 edges, and 6 square facets, and we adjoin
@@ -27,7 +27,7 @@ combinatorial axioms:
 unique least and greatest faces; every maximal chain has the same length
 *n* + 2; the *diamond condition* — between a rank-(*i*−1) face and an
 incident rank-(*i*+1) face lie exactly two rank-*i* faces; and some
-further technical connectedness conditions not to be worried about here.
+further technical connectedness conditions.
 For rank 3 this recovers the familiar notion of a *map* (see below).
 
 **Flags.** A *flag* is a maximal chain in the face poset — one face of
@@ -57,15 +57,14 @@ properly edge-coloured, regular graph that determines the maniplex. The
 and the *1-coskeleton* is that of its dual.
 
 **Regularity and the Schläfli symbol.** Every maniplex here is *regular*:
-its automorphism group acts transitively (indeed, simply transitively) on
-flags, so the object is maximally symmetric. The `schlafli_symbol`
+its automorphism group acts simply transitively on flags, so the object is
+maximally symmetric. The `schlafli_symbol`
 `[p, q, r]` records the local type — the 2-faces are *p*-gons, the
 vertex-figures *q*-gons, and so on — exactly as `{p, q, r}` does for the
 classical regular 4-polytopes. Three entries means rank 4.
 
-So the database is, in effect, a census of highly symmetric rank-4
-combinatorial structures, stored through the graphs (flag graph, skeleton,
-coskeleton) that encode them.
+The database is a census of highly symmetric rank-4 combinatorial structures,
+stored through the graphs (flag graph, skeleton, coskeleton) that encode them.
 
 ## Tables
 
@@ -149,7 +148,7 @@ Row counts:
 
 **Maniplexes.** All 32 634 are rank 4 (every Schläfli symbol has three
 entries) and have `symmetry_type = regular`. Flag count (`size`) ranges
-8–1000, mean ≈ 618. Every maniplex has a non-null 1-skeleton labeling.
+8–1000, mean ≈ 618. Every maniplex has a 1-skeleton labeling.
 
 - Orientability: 13 214 orientable, 19 420 non-orientable.
 - Polytopality: 23 005 `Unfaithful`, 6 101 `Faithful`, 3 528 `Polytopal`.

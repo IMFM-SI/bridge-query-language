@@ -1,6 +1,6 @@
-"""The MathQL query engine as a persistent subprocess.
+"""The `mathql` process, addressed as a persistent subprocess.
 
-The engine speaks JSON Lines over stdin/stdout: one request object per line, one
+It speaks JSON Lines over stdin/stdout: one request object per line, one
 response object per line (`{"rows": ...}` or `{"error": ...}`; a `{"describe": true}`
 request returns the database schema).
 """
@@ -16,8 +16,8 @@ from typing import Any, cast
 class Engine:
     """A persistent `mathql` subprocess, addressed one request at a time.
 
-    By default the engine runs `lake exe mathql <name> <db>` from the Lean package
-    directory. Setting `MATHQL_BIN` runs that prebuilt binary directly instead.
+    The command is `lake exe mathql <name> <db>`, run in `mathql_dir`. `MATHQL_BIN`
+    names a prebuilt binary, run as `<binary> <name> <db>`.
     """
 
     def __init__(self, mathql_dir: Path, name: str, db_path: Path) -> None:

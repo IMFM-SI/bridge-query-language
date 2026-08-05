@@ -86,7 +86,7 @@ end
 
 instance : ToString Ty := ⟨Ty.render⟩
 
-/-- Smart product that elides `.prod` when a single type is given. -/
+/-- The product of a list of types, elided to the type itself for a one-entry list. -/
 def Ty.prod' : List Ty → Ty
 | [t] => t
 | ts => .prod ts

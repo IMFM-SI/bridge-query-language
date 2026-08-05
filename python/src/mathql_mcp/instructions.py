@@ -20,22 +20,23 @@ single-quoted ('text', a literal quote doubled as ''). ASCII operators are prefe
 ∧ ∨ ¬ ≤ ≥ ≠ are accepted equivalents.
 
 postprocess is an ordered list of [column name, expression] pairs appended to each
-row, evaluated after the database returns the rows; each expression may refer to the
-output columns and to the entries preceding it. Each returned row is a list of
-[name, value] pairs, the output columns first and then the postprocess columns; an
-absent value is null.
+row, evaluated outside the database after it returns the rows; each expression may
+refer to the output columns and to the entries preceding it. Each returned row is a
+list of [name, value] pairs, the output columns first and then the postprocess
+columns; an absent value is null.
 
 Call the `grammar` tool (or read the mathql://grammar resource) for the complete
 grammar."""
 
 GRAPH_TOOLS = """## Inspecting a graph
-A query returns a graph as its `graph6` string, which is opaque on its own. The graph
-tools decode it (vertices are numbered 0..n-1):
+A query returns a graph as its `graph6` string. The graph tools decode it
+(vertices are numbered 0..n-1):
 - `edge_list` — vertex count and edges;
 - `neighbors`, `shortest_path` — a vertex's neighbors, a path between two vertices;
 - `max_clique`, `max_independent_set`, `connected_components` — exact witnesses for the
   clique number, independence number, and component count;
-- `coloring` — a proper coloring (greedy; may exceed the chromatic number)."""
+- `coloring` — a proper coloring (greedy; the color count may exceed the chromatic
+  number)."""
 
 
 def _database_section(name: str, schema: dict[str, Any]) -> list[str]:
@@ -67,7 +68,7 @@ def build_instructions(schemas: dict[str, dict[str, Any]]) -> str:
         (
             f"Databases served: {', '.join(schemas)}. `query` and `describe` take a "
             f"`database` parameter selecting one (default: {default}); `describe` with "
-            "no arguments lists them."
+            "an empty argument list returns them."
         ),
         "",
     ]

@@ -15,8 +15,8 @@ structure Query where
   limit : Option Nat
 
 /-- Render a query to SQLite text, with a bare condition. Each output column is
-rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so when
-it matches no row its columns are NULL. -/
+rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so its
+columns are NULL wherever the match is empty. -/
 def renderQuery (q : Query) : String :=
   let froms := ", ".intercalate <| q.froms.map fun (table, alias) =>
     s!"{renderIdent table} AS {renderIdent alias}"

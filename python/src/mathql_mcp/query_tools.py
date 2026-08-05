@@ -42,8 +42,8 @@ def register(
     ) -> list[list[tuple[str, Any]]]:
         """Run a MathQL query and return the matching rows.
 
-        Each row is a list of [column name, value] pairs, in the order the output
-        and postprocess clauses name them.
+        Each row is a list of [column name, value] pairs: the output columns in their
+        given order, then the postprocess columns in theirs.
 
         domains: variable bindings, e.g. [["g", "Graph"]].
         output: [column name, expression] pairs, in the order the columns are to
@@ -56,8 +56,8 @@ def register(
         postprocess: [column name, expression] pairs appended to each row and
             computed in order after the rows come back, each expression over the
             output columns and any earlier entry (optional).
-        database: which database to query (optional; call `describe` with no
-            arguments for the list, the first entry being the default).
+        database: which database to query (optional; `describe` with an empty argument
+            list returns the list, the first entry being the default).
         """
         request: dict[str, Any] = {"domains": domains, "output": output}
         if condition is not None:
@@ -77,7 +77,8 @@ def register(
     def describe(database: str | None = None) -> dict[str, Any]:
         """Describe a database: its domains, fields, constants, and examples.
 
-        With no `database`, list the available databases and their overviews.
+        Called with an empty argument list, returns the available databases and their
+        overviews.
         """
         if database is None:
             return {
