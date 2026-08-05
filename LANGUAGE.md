@@ -125,9 +125,10 @@ A query is the top-level form, submitted as JSON:
 
 - `domains` binds variables `x₁ ∈ D₁, …`; with more than one binding the query
   ranges over the product of the domains (a join).
-- `output` is an ordered list of `[name, e]` pairs; each name is a plain identifier
-  and names a result column whose value is the value of `e`. The list order is the
-  column order of every row. Each output expression refers to the bound variables.
+- `output` is an ordered list of `[name, e]` pairs; each name is a plain identifier,
+  distinct from the other names, and names a result column whose value is the value of
+  `e`. The list order is the column order of every row. Each output expression refers
+  to the bound variables.
 - `condition` is an expression of type `Bool` over the bound variables.
 - `order` sorts by expressions, each ascending or descending; an order expression
   may refer to the output columns by name.

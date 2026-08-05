@@ -195,13 +195,17 @@ def checkList (Γ : Context) (t : Ty) :
 
 end
 
-/-- Check each output field in `Γ`, the context of the domain variables. -/
+/-- Check each output field in `Γ`, the context of the domain variables. The column names
+are distinct: each is compared with the names after it, and with those alone, so a column
+may carry the name of a domain variable or of a constant. -/
 def checkOutput (Γ : Context) :
     List (String × Input.Expr) → Result (List (Ident × Ty × Expr))
   | [] => return []
   | (x', e) :: xes => do
     let ⟨t, e, _⟩ ← infer Γ e
     let rest ← checkOutput Γ xes
+    if rest.any (fun (y, _, _) => y == .ident x') then
+      throw s!"duplicate output column {x'}"
     return (.ident x', t, e) :: rest
 
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :

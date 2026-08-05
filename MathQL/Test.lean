@@ -95,6 +95,10 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard elaborates (jq [("n", "g.n")] "defined g.n")
 #guard elaborates (jq [("m", "Graph['abc'].n")] "Graph['abc'].n > 3")
 
+-- The output column names are distinct, and each may carry the name of a variable.
+#guard elaborates (jq [("g", "g.n"), ("h", "h.n")] "true")
+#guard !elaborates (jq [("n", "g.n"), ("n", "h.n")] "true")
+
 -- Ill-typed queries.
 #guard !elaborates (jq [("n", "g.n")] "g.n")            -- a condition is checked at Bool
 #guard !elaborates (jq [("b", "g.bogus")] "g.planar")   -- unknown field
