@@ -139,7 +139,7 @@ private partial def atomExpr : Parser Input.Expr :=
   (do tok "["; let items ← sepBy expr (tok ","); tok "]"; return .list items) <|>
   parenOrTupleExpr <|>
   idExpr <|>
-  identOrObjExpr
+  identObjOrCallExpr
 
 /-- The primary key of an object, `id(e)`; a bare `id` is an ordinary identifier. -/
 private partial def idExpr : Parser Input.Expr := do
@@ -148,10 +148,12 @@ private partial def idExpr : Parser Input.Expr := do
   tok ")"
   return .id e
 
-/-- A bare identifier `x`, or an object `D[e₁, …, eₙ]`. -/
-private partial def identOrObjExpr : Parser Input.Expr := do
+/-- A bare identifier `x`, an object `D[e₁, …, eₙ]`, or a call `f(e₁, …, eₙ)`. -/
+private partial def identObjOrCallExpr : Parser Input.Expr := do
   let x ← ident
-  (do tok "["; let es ← sepBy expr (tok ","); tok "]"; return .obj x es) <|> pure (.ident x)
+  (do tok "["; let es ← sepBy expr (tok ","); tok "]"; return .obj x es) <|>
+  (do tok "("; let es ← sepBy expr (tok ","); tok ")"; return .call x es) <|>
+  pure (.ident x)
 
 private partial def parenOrTupleExpr : Parser Input.Expr := do
   tok "("
