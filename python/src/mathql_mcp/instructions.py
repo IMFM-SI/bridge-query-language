@@ -4,16 +4,29 @@ import json
 from typing import Any
 
 SUMMARY = """## Writing queries
-`query` takes: domains (e.g. [["g", "Graph"]]); output, a mapping from each result
-column name to the expression it returns (e.g. {"g6": "id(g)", "edges":
-"g.num_edges"}); and optional condition, order ([expression, "asc"|"desc"] pairs,
-which may refer to the output column names), limit, and database. Expressions use
-fields (g.num_vertices), id(x) for an object's primary key, literals, arithmetic
-(+ - *), comparisons (== != < <= > >=), booleans (&& || !), and defined/undefined
-for absence; a comparison needs both sides the same type. String literals are
-single-quoted ('text', a literal quote doubled as ''). ASCII operators are
-preferred; ∧ ∨ ¬ ≤ ≥ ≠ also work. Call the `grammar` tool (or read the
-mathql://grammar resource) for the full grammar."""
+`query` takes: domains (e.g. [["g", "Graph"]]); output, an ordered list of
+[column name, expression] pairs (e.g. [["g6", "id(g)"], ["edges", "g.num_edges"]])
+whose order is the column order of every row; and optional condition, order
+([expression, "asc"|"desc"] pairs, which may refer to the output column names),
+limit, postprocess, and database.
+
+Expressions are built from fields (g.num_vertices), id(x) for an object's primary
+key, literals, arithmetic (+ - *), comparisons (== != < <= > >=), booleans (&& || !),
+defined/undefined for absence, tuples ((a, b, c)) with e.i selecting the i-th
+component counting from zero, lists ([a, b]), if c then a else b, and f(x) for a
+function the database declares.
+A comparison requires both sides to have the same type. String literals are
+single-quoted ('text', a literal quote doubled as ''). ASCII operators are preferred;
+∧ ∨ ¬ ≤ ≥ ≠ are accepted equivalents.
+
+postprocess is an ordered list of [column name, expression] pairs appended to each
+row, evaluated after the database returns the rows; each expression may refer to the
+output columns and to the entries preceding it. Each returned row is a list of
+[name, value] pairs, the output columns first and then the postprocess columns; an
+absent value is null.
+
+Call the `grammar` tool (or read the mathql://grammar resource) for the complete
+grammar."""
 
 GRAPH_TOOLS = """## Inspecting a graph
 A query returns a graph as its `graph6` string, which is opaque on its own. The graph
