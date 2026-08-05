@@ -20,6 +20,7 @@ inductive Expr where
   | list : List Expr → Expr
   | ite : Expr → Expr → Expr → Expr
   | tuple : List Expr → Expr
+  | call : String → List Expr → Expr
   | unop : UnaryOp → Expr → Expr
   | binop : BinaryOp → Expr → Expr → Expr
   | compare : ComparisonOp → Expr → Expr → Expr
@@ -41,12 +42,6 @@ structure OrderEntry where
   dir : Direction
 deriving Repr
 
-inductive PostExpr where
-  | int : Int → PostExpr
-  | ident : String → PostExpr
-  | call : String × List PostExpr → PostExpr
- deriving Repr
-
 /-- A query. `condition`, `order`, and `limit` are optional in the input; the
     type-checker fills in `true`, the empty list, and none respectively. -/
 structure Query where
@@ -55,7 +50,7 @@ structure Query where
   condition : Option Expr := none
   order : Option (List OrderEntry) := none
   limit : Option Nat := none
-  postprocess : List (String × PostExpr) := []
+  postprocess : List (String × Expr) := []
 deriving Repr
 
 end MathQL.Input

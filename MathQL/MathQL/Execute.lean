@@ -40,38 +40,138 @@ def rowObject (cs : List (Ident × Ty × Expr)) : SQLite.RowReader (List (Ident 
 /-- A runtime environment for postprocessing expressions -/
 structure PostEnvironment where
   ident : List (Ident × Lean.Json)
-  function : List (Ident × (List Lean.Json → Lean.Json))
+  function : List (Ident × (List Lean.Json → Result Lean.Json))
 
-def evalPostExpr (env : PostEnvironment) : PostExpr → Lean.Json
+def evalUnaryOp : UnaryOp → Lean.Json → Result Lean.Json
+| .not, j => do
+  let b ← j.getBool?
+  return .bool (not b)
+| .neg, j => do
+  let k ← j.getInt?
+  return .num (- k)
 
-| .int n => .num n
+def evalBinaryOp : BinaryOp → Lean.Json → Lean.Json → Result Lean.Json
+| .and, v1, v2 => do
+  let b1 ← v1.getBool?
+  let b2 ← v2.getBool?
+  return .bool (b1 && b2)
+| .or, v1, v2 => do
+  let b1 ← v1.getBool?
+  let b2 ← v2.getBool?
+  return .bool (b1 || b2)
+| .add, v1, v2 => do
+  let k1 ← v1.getInt?
+  let k2 ← v2.getInt?
+  return .num (k1 + k2)
+| .sub, v1, v2 => do
+  let k1 ← v1.getInt?
+  let k2 ← v2.getInt?
+  return .num (k1 - k2)
+| .mul, v1, v2 => do
+  let k1 ← v1.getInt?
+  let k2 ← v2.getInt?
+  return .num (k1 * k2)
+
+def evalComparison (op : ComparisonOp) (j1 : Lean.Json) (j2 : Lean.Json) : Result Lean.Json := do
+  let k1 ← j1.getInt?
+  let k2 ← j2.getInt?
+  let f : Int → Int → Bool :=
+    match op with
+    | .eq => (· == ·)
+    | .ne => (· != ·)
+    | .lt => (· < ·)
+    | .le => (· <= ·)
+    | .gt => (· > ·)
+    | .ge => (· >= ·)
+  return .bool (f k1 k2)
+
+def evalPostExpr (env : PostEnvironment) : Expr → Result Lean.Json
+
+| .int n => return .num n
+
+| .bool b => return .bool b
+
+| .str s => return .str s
 
 | .ident x =>
   match env.ident.lookup x with
-  | none => .null
-  | some v => v
+  | none => throw s!"unknown identifier {x.name}"
+  | some v => return v
+
+| .id _ =>
+  throw s!"id is not allowed in postprocessing"
+
+| .field _ _ =>
+  throw s!"field projection is not allowed in postprocessing"
 
 | .call f args =>
   match env.function.lookup f with
-  | .none => .null
-  | .some f => f (args.map (evalPostExpr env))
+  | .none => throw s!"unknown function {f.name}"
+  | .some f => do
+    let vs ← args.mapM (evalPostExpr env)
+    f vs
+
+| .unop op e => do
+  let v ← evalPostExpr env e
+  evalUnaryOp op v
+
+| .binop op e1 e2 => do
+  let v1 ← evalPostExpr env e1
+  let v2 ← evalPostExpr env e2
+  evalBinaryOp op v1 v2
+
+| .compare op _ e1 e2 => do
+  let v1 ← evalPostExpr env e1
+  let v2 ← evalPostExpr env e2
+  evalComparison op v1 v2
+
+| .list es => do
+  let vs ← es.mapM (evalPostExpr env)
+  return .arr vs.toArray
+
+| .tuple es => do
+  let vs ← es.mapM (evalPostExpr env)
+  return .arr vs.toArray
+
+| .proj e1 n => do
+  let v ← evalPostExpr env e1
+  v.getArrVal? n -- We're relying here on Result = Except String
+
+| .ite b e1 e2 => do
+  let b ← evalPostExpr env b
+  match b.getBool? with
+  | .ok true => evalPostExpr env e1
+  | .ok false => evalPostExpr env e2
+  | .error msg => throw s!"boolean expected ({msg})"
+
+| .defined e =>
+  let r := evalPostExpr env e
+  return .bool r.toBool
+
+| .undefined e =>
+  let r := evalPostExpr env e
+  return .bool (not r.toBool)
 
 
 def evalPostprocess (env : PostEnvironment) :
-  List (Ident × Ty × PostExpr) → List (Ident × Lean.Json)
+  List (Ident × Ty × Expr) → List (Ident × Lean.Json)
 | [] => []
 | (x, _, e) :: ps =>
-  let v := evalPostExpr env e
+  let v := match evalPostExpr env e with | .ok v => v | .error _ => .null
   let vs := evalPostprocess {env with ident := (x, v) :: env.ident} ps
   (x, v) :: vs
 
 /-- Step through every result row, decoding each into its output object. -/
-partial def collectRows (stmt : SQLite.Stmt) (q : Query) (acc : Array (List (Ident × Lean.Json))) :
+partial def collectRows
+  (funs : List (Ident × (List Lean.Json → Result Lean.Json)))
+  (stmt : SQLite.Stmt)
+  (q : Query)
+  (acc : Array (List (Ident × Lean.Json))) :
     IO (Array (List (Ident × Lean.Json))) := do
   if ← stmt.step then
     let row ← (rowObject q.output).run stmt
-    let post := evalPostprocess {ident := row, function := functionsImpl} q.postprocess
-    collectRows stmt q (acc.push (row ++ post))
+    let post := evalPostprocess {ident := row, function := funs} q.postprocess
+    collectRows funs stmt q (acc.push (row ++ post))
   else
     return acc
 
@@ -81,7 +181,7 @@ def run (db : SQLite) (D : Database) (q : Query) : IO (Except String Lean.Json) 
   | .error e => return .error e
   | .ok sql =>
     let stmt ← db.prepare (toString sql)
-    let rows ← collectRows stmt q #[]
+    let rows ← collectRows (D.postFunction.map (fun ⟨f,_,c⟩ => (f, c))) stmt q #[]
     return .ok (Lean.Json.arr (rows.map fieldsToJson))
 where
   fieldsToJson (lst : List (Ident × Lean.Json)) : Lean.Json :=

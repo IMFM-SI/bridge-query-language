@@ -3,6 +3,7 @@ import MathQL.Result
 import MathQL.Context
 import MathQL.Expr
 import MathQL.Rules
+import MathQL.Database
 import MathQL.Query
 import MathQL.Postprocess
 
@@ -79,6 +80,14 @@ def infer (Γ : Context) (e : Input.Expr) : Result (Σ (t : Ty), { e' : Expr // 
       | none => throw s!"projection index {idx} out of range"
     | _, _ => throw "projection of a non-product"
 
+  | .call f' es =>
+    let f := .ident f'
+    match h : Γ.function.lookup f with
+    | none => throw s!"unknown function {f'}"
+    | some (ts, t) => do
+      let ⟨es, hes⟩ ← checkTuple Γ es ts
+      return ⟨t, .call f es, .call h hes⟩
+
   | .unop op e =>
     match h : unaryTy op with
     | (t₁, t₂) => do
@@ -145,7 +154,8 @@ def inferDomain (Γ : Context) (e : Input.Expr) :
     return ⟨dn, .field e f, .field he hd⟩
 
   | .int _  | .bool _ | .str _ | .id _ | .tuple _ | .list _ | .proj _ _
-  | .ite _ _ _ | .unop _ _| .binop _ _ _ | .compare _ _ _ | .defined _ | .undefined _ =>
+  | .ite _ _ _ | .call _ _ | .unop _ _| .binop _ _ _ | .compare _ _ _
+  | .defined _ | .undefined _ =>
     throw s!"invalid expression in a field projection"
 
 /-- Check a tuple's components against the product's component types. -/
@@ -213,61 +223,28 @@ def checkOrder (Γ : Context) :
     let rest ← checkOrder Γ rest
     return (e, entry.dir) :: rest
 
-mutual
-  def inferPostExpr (Γ : PostContext) : Input.PostExpr → Result (Ty × PostExpr)
-  | .int n => return (.int, .int n)
-
-  | .ident x' =>
-    let x := .ident x'
-    match Γ.ident.lookup x with
-    | none => throw s!"{x'} is not a valid output or a postprocessing field"
-    | some t => return (t, .ident x)
-
-  | .call (f', args) =>
-    let f := .ident f'
-    match Γ.function.lookup f with
-    | none => throw s!"unknown postprocessing function {f'}"
-    | some (ts, t) => do
-      let args ← checkPostArgs Γ args ts
-      return (t, .call f args)
-
-  def checkPostExpr (Γ : PostContext) (e : Input.PostExpr) (t : Ty) : Result PostExpr := do
-    let ⟨t', e⟩ ← inferPostExpr Γ e
-    if t == t' then
-      return e
-    else
-      throw s!"expected type {t} but got {t'}"
-
-  def checkPostArgs (Γ : PostContext) : List Input.PostExpr → List Ty → Result (List PostExpr)
-  | [], [] => return []
-  | e :: es, t :: ts => do
-    let e ← checkPostExpr Γ e t
-    let es ← checkPostArgs Γ es ts
-    return e :: es
-  | [], _::_ => throw s!"too few arguments in a function call"
-  | _::_, [] => throw s!"too many arguments in a function call"
-end
-
-def checkPostprocess (Γ : PostContext) :
-  List (String × Input.PostExpr) → Result (List (Ident × Ty × PostExpr))
+def checkPostprocess (Γ : Context) :
+  List (String × Input.Expr) → Result (List (Ident × Ty × Expr))
 | [] => return []
 | (x, e) :: ps => do
   let x := .ident x
   match Γ.ident.lookup x with
   | none =>
-    let (t, e) ← inferPostExpr Γ e
-    let ps ← checkPostprocess {Γ with ident := (x, t) :: Γ.ident} ps
+    let ⟨t, e, _⟩ ← infer Γ e
+    let ps ← checkPostprocess (Γ.extendIdent x t) ps
     return (x, t, e) :: ps
   | some _ => throw s!"duplicate field {x} in postprocess"
 
-def checkQuery (Γ : Context) (q : Input.Query) : Result Query := do
-  let ⟨Γ, vars⟩ ← checkDomainVars Γ [] (q.domains.map fun b => (b.var, b.domain))
-  let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
-  let output ← checkOutput Γ q.output
+def checkQuery
+  (D : Database)
+  (q : Input.Query) : Result Query := do
+  let sqlΓ := D.getSqlContext
+  let ⟨Γ, vars⟩ ← checkDomainVars sqlΓ [] (q.domains.map fun b => (b.var, b.domain))
+  let ⟨condition, _⟩ ← check sqlΓ (q.condition.getD (.bool true)) .bool
+  let output ← checkOutput sqlΓ q.output
   let Δ := output.foldl (fun Δ (x, t, _) => Δ.extendIdent x t) Γ
   let order ← checkOrder Δ (q.order.getD [])
-  let Ξ : PostContext := { ident := (output.map (fun (id, ty, _) => (id, ty))), function := functionsTy }
-  let postprocess ← checkPostprocess Ξ q.postprocess
+  let postprocess ← checkPostprocess D.getPostContext q.postprocess
   return { vars, condition, output, limit := q.limit, order, postprocess }
 
 end MathQL

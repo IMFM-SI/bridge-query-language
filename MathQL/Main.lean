@@ -15,7 +15,7 @@ def handle (db : SQLite) (database : Database) (j : Lean.Json) : IO Lean.Json :=
   match j.getObjVal? "describe" with
   | .ok _ => return database.describe
   | .error _ =>
-    match Input.Query.fromJson j >>= checkQuery database.getContext with
+    match Input.Query.fromJson j >>= checkQuery database with
     | .error e => return Lean.Json.mkObj [("error", Lean.Json.str e)]
     | .ok q =>
       match ← run db database q with

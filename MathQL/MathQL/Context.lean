@@ -25,8 +25,12 @@ inductive Entry where
 
 /-- Contexts. -/
 structure Context where
+  /-- Known domains (database tables) -/
   domain : DomainContext
+  /-- Known identifiers -/
   ident : List (Ident × Entry)
+  /-- Known primitive functions -/
+  function : List (Ident × (List Ty × Ty))
 
 def Context.getIdent (Γ : Context) (x : Ident) : Result Ty :=
   match Γ.ident.lookup x with
@@ -69,17 +73,16 @@ def Context.getInputFieldTy (Γ : Context) (d : DomainName) (l : Label) : Result
   let ft ← Γ.getInputField d l
   return ft.ty
 
-def Context.empty (D : DomainContext) : Context where
+def Context.empty
+    (D : DomainContext)
+    (F : List (Ident × List Ty × Ty))
+  : Context where
   domain := D
+  function := F
   ident := []
 
 def Context.extendIdent (Γ : Context) (x : Ident) (t : Ty) : Context :=
-  { domain := Γ.domain, ident := (x, .ty t) :: Γ.ident }
+  { Γ with ident := (x, .ty t) :: Γ.ident }
 
 def Context.extendDomainIdent (Γ : Context) (x : Ident) (d : DomainName) : Context :=
-  { domain := Γ.domain, ident := (x, .domain d) :: Γ.ident }
-
-/-- A context for type-checking postprocessing expressions -/
-structure PostContext where
-  ident : List (Ident × Ty)
-  function : List (Ident × List Ty × Ty)
+  { Γ with  ident := (x, .domain d) :: Γ.ident }

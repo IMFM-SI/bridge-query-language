@@ -32,6 +32,11 @@ inductive ExprOfTy : Context → Expr → Ty → Prop where
         Γ.getInputFieldTy d l = .ok t →
         ExprOfTy Γ (.field e l) t
 
+  | call : ∀ {Γ f es ts t},
+        Γ.function.lookup f = .some (ts, t) →
+        TupleOfTy Γ es ts →
+        ExprOfTy Γ (.call f es) t
+
   | unop : ∀ {Γ op e t₁ t₂},
         unaryTy op = (t₁, t₂) →
         ExprOfTy Γ e t₁ →

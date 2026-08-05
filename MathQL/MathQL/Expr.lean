@@ -31,6 +31,8 @@ inductive Expr where
   | id : Domain → Expr
   /-- Field projection -/
   | field : Domain → Label → Expr
+  /-- function call -/
+  | call : Ident → List Expr → Expr
   /-- Unary operation -/
   | unop : UnaryOp → Expr → Expr
   /-- Binary operation -/
@@ -50,11 +52,5 @@ inductive Expr where
   /-- Undefined? -/
   | undefined : Expr → Expr
 deriving Repr, BEq
-
-inductive PostExpr where
-  | ident : Ident → PostExpr
-  | int : Int → PostExpr
-  | call : Ident → List PostExpr → PostExpr
-deriving Repr
 
 end

@@ -30,6 +30,8 @@ structure SqlCtx where
   ident : List (Ident × ContextEntry)
   /-- The schema of a domain. -/
   schema : List (DomainName × Schema)
+  /-- The mapping from MathQL function names to SQL functions -/
+  function : List (Ident × String)
 
 /-- The state of a compilation: the aliases in use, the hoisted joins (table,
     alias, `ON` condition), and the mapping from hoisted domain expressions to
@@ -167,6 +169,12 @@ def compileExpr (Γ : SqlCtx) (e : Expr) : CompileM SQL.Expr := do
     let f ← Γ.getColumn dn l
     return .col alias.name f.column
 
+  | .call f es =>
+    let ss ← compileExprList Γ es
+    match Γ.function.lookup f with
+    | .none => throw s!"unknown function {f.name}"
+    | .some c => return .call c ss
+
   | .unop op e =>
     let s ← compileExpr Γ e
     return .unop op s
@@ -247,6 +255,7 @@ def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
   let Γ : SqlCtx :=
     { ident := (q.vars.map fun (x, n) => (x, .domain n)) ++
                (D.const.map fun (x, _, s) => (x, .const s))
+      function := D.sqlFunction.map (fun ⟨f, _, c⟩ => (f ,c))
       schema := D.domain
     }
   let Δ : SqlCtx :=

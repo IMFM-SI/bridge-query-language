@@ -79,6 +79,8 @@ def database : Database where
     annotated with a selection of graph invariants."
   const := []
   domain := [(.domain "Graph", graphDomain)]
+  sqlFunction := []
+  postFunction := []
   examples :=
     [ ("the trees on 5 vertices",
         json% { "domains": [["g", "Graph"]],

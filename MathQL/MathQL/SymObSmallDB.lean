@@ -121,6 +121,8 @@ def database : Database where
       (.domain "Graph", graphDomain),
       (.domain "LabelingParameters", labelingParametersDomain),
       (.domain "GraphExternalReference", graphExternalReferenceDomain) ]
+  sqlFunction := []
+  postFunction := []
   examples :=
     [ ("orientable polytopal maniplexes of type (4, 8, 8)",
         json% { "domains": [["m", "Maniplex"]],

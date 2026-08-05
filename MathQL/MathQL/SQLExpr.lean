@@ -10,6 +10,7 @@ inductive Expr where
   | str       : String → Expr
   | bool      : Bool → Expr
   | null      : Expr
+  | call      : String → List Expr → Expr
   | unop      : UnaryOp → Expr → Expr
   | binop     : BinaryOp → Expr → Expr → Expr
   | compare   : ComparisonOp → Expr → Expr → Expr
@@ -56,6 +57,7 @@ def renderExpr : Expr → String
   | .bool b           => if b then "1" else "0"
   | .str s            => "'" ++ s.replace "'" "''" ++ "'"
   | .null             => "NULL"
+  | .call f es        => s!"{renderIdent f}({renderArgs es})"
   | .unop op e        => s!"{renderUnop op} ({renderExpr e})"
   | .binop op e₁ e₂   => s!"({renderExpr e₁} {renderBinop op} {renderExpr e₂})"
   | .compare op e₁ e₂ => s!"({renderExpr e₁} {renderCompareOp op} {renderExpr e₂})"

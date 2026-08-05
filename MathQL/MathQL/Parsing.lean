@@ -164,16 +164,6 @@ private partial def parenOrTupleExpr : Parser Input.Expr := do
 
 end
 
-private partial def postExpr : Parser Input.PostExpr :=
-  (do let n ← intLit; return .int n)
-  <|> attempt (do
-        let f ← ident
-        tok "("
-        let args ← sepBy postExpr (tok ",")
-        tok ")"
-        return .call (f, args))
-  <|> (do let x ← ident; return .ident x)
-
 /-- Run a parser over an entire string, requiring it to consume all input. -/
 private def runComplete {α} (p : Parser α) (s : String) : Except String α :=
   (do ws; let r ← p; eof; return r).run s
@@ -183,9 +173,5 @@ def parseExpr : String → Except String Input.Expr := runComplete expr
 
 /-- Parse a single identifier from a string. -/
 def parseIdent : String → Except String String := runComplete ident
-
-/-- Parse a postprocessing expression from a string. Used by the JSON query
-    decoder for the entries of the `postprocess` stage. -/
-def parsePostExpr : String → Except String Input.PostExpr := runComplete postExpr
 
 end MathQL.Parsing

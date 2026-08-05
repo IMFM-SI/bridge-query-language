@@ -49,6 +49,10 @@ structure Database where
   const : List (Ident × Ty × SQL.Expr)
   /-- The domains/tables known to this database -/
   domain : List (DomainName × Schema)
+  /-- SQL functions -/
+  sqlFunction : List (Ident × (List Ty × Ty) × String)
+  /-- Postprocessing functions -/
+  postFunction : List (Ident × (List Ty × Ty) × (List Lean.Json → Result Lean.Json))
   /-- Example queries, each with a short note -/
   examples : List (String × Lean.Json)
 
@@ -57,9 +61,18 @@ def Database.getDomainContext (D : Database) : DomainContext :=
     (n, { inputField := d.column.map fun (l, f) => (l, {ty := f.ty, isPrimary := f.isPrimary})
           domainField := d.foreignKey.map fun (l, fk) => (l, fk.domain) })
 
-def Database.getContext (D : Database) : Context where
+/-- Return the initial context for typechcking the query -/
+def Database.getSqlContext (D : Database) : Context where
   domain := D.getDomainContext
+  function := D.sqlFunction.map fun (x, t, _) => (x, t)
   ident := D.const.map fun (x, t, _) => (x, .ty t)
+
+/-- Return the initial context for typechecking postprocessing -/
+def Database.getPostContext (D : Database) : Context where
+  domain := []
+  function := D.postFunction.map (fun ⟨f, t, _⟩ => (f, t))
+  ident := D.const.map fun (x, t, _) => (x, .ty t)
+
 
 /-- A JSON description of the database for the `describe` request: an overview, each
 domain with its doc and its queryable fields (label, type, doc),

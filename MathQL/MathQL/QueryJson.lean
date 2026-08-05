@@ -66,13 +66,13 @@ instance : FromJson OrderEntry where
 
     Passing an object here therefore fails in `getArr?` rather than being
     accepted in some arbitrary order. -/
-def postprocessFromJson (j : Json) : Except String (List (String × PostExpr)) := do
+def postprocessFromJson (j : Json) : Except String (List (String × Expr)) := do
   let entries ← j.getArr?
   entries.toList.mapM fun entry => do
     match (← entry.getArr?).toList with
     | [n, e] =>
       let name ← Parsing.parseIdent (← n.getStr?)
-      let expr ← Parsing.parsePostExpr (← e.getStr?)
+      let expr ← Parsing.parseExpr (← e.getStr?)
       return (name, expr)
     | _ => throw "a postprocess entry must be a [name, expression] pair"
 

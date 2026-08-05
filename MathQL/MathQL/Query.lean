@@ -11,7 +11,7 @@ structure Query where
   condition : Expr
   /-- output fields, each an alias, the field's type, and the expression -/
   output : List (Ident × Ty × Expr)
-  postprocess : List (Ident × Ty × PostExpr)
+  postprocess : List (Ident × Ty × Expr)
   limit : Option Nat
   order : List (Expr × Direction)
 
