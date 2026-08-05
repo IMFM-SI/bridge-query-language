@@ -105,6 +105,25 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard !elaborates (json% { "domains": [["g", "Graph"], ["g", "Graph"]],
                             "output": $(entries [("n", "g.n")]) })
 
+-- An empty clause renders the SQL that says it. Over no table the `FROM` clause is
+-- absent, a hoisted join takes `(SELECT 1)` as its left operand, and a query selecting
+-- no column selects `1`, which is the smallest select list SQL admits.
+#guard match renderOf (json% { "domains": [], "output": $(entries [("x", "2 + 2")]) }) with
+  | .ok s => s == "SELECT (2 + 2) AS \"x\" WHERE 1"
+  | .error _ => false
+#guard match renderOf (json% { "domains": [],
+                               "output": $(entries [("n", "Graph['abc'].n")]) }) with
+  | .ok s => s == "SELECT \"Graph\".\"n\" AS \"n\" FROM (SELECT 1)"
+                  ++ " LEFT JOIN \"graph\" AS \"Graph\" ON \"Graph\".\"graph6\" = 'abc' WHERE 1"
+  | .error _ => false
+#guard match renderOf (json% { "domains": [["g", "Graph"]], "output": [],
+                               "condition": "g.n > 3" }) with
+  | .ok s => s == "SELECT 1 FROM \"graph\" AS \"g\" WHERE (\"g\".\"n\" > 3)"
+  | .error _ => false
+#guard match renderOf (json% { "domains": [], "output": [] }) with
+  | .ok s => s == "SELECT 1 WHERE 1"
+  | .error _ => false
+
 -- Ill-typed queries.
 #guard !elaborates (jq [("n", "g.n")] "g.n")            -- a condition is checked at Bool
 #guard !elaborates (jq [("b", "g.bogus")] "g.planar")   -- unknown field

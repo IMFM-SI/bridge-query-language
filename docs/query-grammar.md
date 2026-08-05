@@ -18,12 +18,14 @@ A query is a JSON object:
 }
 ```
 
-- `domains` (required) binds one or more distinct variables, each ranging over a
-  named domain; several bindings form a join.
+- `domains` (required) binds distinct variables, each ranging over a named domain;
+  several bindings form a join. The empty list binds nothing, and the query then
+  ranges over constants, function calls and objects named by their primary keys.
 - `output` (required) is an ordered list of `[name, expression]` pairs. Each name is
   a plain identifier, distinct from the other names, and names a result column whose
   value is the value of the expression. The list order is the column order of every
-  row. Each output expression may refer to the variables bound by `domains`.
+  row. Each output expression may refer to the variables bound by `domains`. The
+  empty list names no column, and a row then carries its postprocess columns alone.
 - `condition` (optional, default `true`) restricts the result to the objects, or
   tuples of objects, that satisfy it; it must have type `bool`.
 - `order` (optional) sorts the result by one or more scalar expressions, each
@@ -43,6 +45,11 @@ A query is a JSON object:
 A query returns the matching rows. Each row is a list of `[name, value]` pairs: the
 output columns in the order `output` names them, then the postprocess columns in the
 order `postprocess` names them. An absent value is `null`.
+
+How many rows there are follows from `domains` and `condition` alone: one per tuple of
+objects satisfying the condition, and one row when `domains` binds nothing and the
+condition holds. Naming no output column therefore changes what a row shows and never
+how many rows there are.
 
 ## Domains
 
@@ -73,7 +80,7 @@ type ::= "int"
 
 - `int` — integers.
 - `bool` — the truth values `true` and `false`.
-- `string` — text.
+- `string` — text in UTF-8; a value may carry any character.
 - `list` τ — an ordered list of values of type τ.
 - a product `τ₁ * … * τₙ` — a tuple of components of the given types; the nullary
   product is the unit type.
@@ -124,6 +131,10 @@ A `variable`, an `expr . field` on a domain field, and a `domain[…]` denote
 *objects*; they appear only under `id` or as the head of a further projection. A
 query that returns or compares a bare object is ill-typed.
 
+Every identifier — a variable, a column name, a domain name, a field label, a constant
+and a function — is ASCII: a letter followed by letters, digits and `_`. UTF-8 text
+belongs in string literals and in the values a database holds.
+
 The meaning and types of the above expressions is as follows:
 
 - `if c then a else b` — evaluates to `a` when `c` is true and to `b` otherwise; `c` must be
@@ -149,8 +160,8 @@ The meaning and types of the above expressions is as follows:
 - `e.i` — the `i`-th component (counting from zero) of the tuple `e`; its type is
   that component's type.
 - `42` – integer literal of type `int`
-- `'text'` – string literal of type `string`; a literal single quote is written by
-  doubling it (`'it''s'`).
+- `'text'` – string literal of type `string`, holding any UTF-8 text; a literal single
+  quote is written by doubling it (`'it''s'`).
 - `true` and `false` – truth values of type `bool`
 - `x` — a variable, denoting the object it is bound to.
 - `x.field` — the field `field` of the object `x`: an input field yields its scalar

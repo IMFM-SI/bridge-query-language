@@ -16,22 +16,31 @@ structure Query where
 
 /-- Render a query to SQLite text, with a bare condition. Each output column is
 rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so its
-columns are NULL wherever the match is empty. -/
+columns are NULL wherever the match is empty.
+
+A query selecting no column renders `SELECT 1`, the smallest select list SQL
+admits, and a query over no table renders without a `FROM` clause. A hoisted
+join over no table takes `(SELECT 1)`, a source of one row, as the left operand
+that `LEFT JOIN` requires. -/
 def renderQuery (q : Query) : String :=
-  let froms := ", ".intercalate <| q.froms.map fun (table, alias) =>
-    s!"{renderIdent table} AS {renderIdent alias}"
   let joins := String.join <| q.joins.map fun (table, alias, eqs) =>
     let conds := eqs.map fun (col, e) =>
       s!"{renderIdent alias}.{renderIdent col} = {renderExpr e}"
     let on := if conds.isEmpty then "1" else " AND ".intercalate conds
     s!" LEFT JOIN {renderIdent table} AS {renderIdent alias} ON {on}"
-  let cols  := ", ".intercalate <| q.output.map fun (e, alias) =>
-    s!"{renderExpr e} AS {renderIdent alias}"
+  let from_ := match q.froms with
+    | [] => if q.joins.isEmpty then "" else " FROM (SELECT 1)"
+    | froms => " FROM " ++ ", ".intercalate (froms.map fun (table, alias) =>
+        s!"{renderIdent table} AS {renderIdent alias}")
+  let cols := match q.output with
+    | [] => "1"
+    | output => ", ".intercalate (output.map fun (e, alias) =>
+        s!"{renderExpr e} AS {renderIdent alias}")
   let order := match q.order with
     | [] => ""
     | es => " ORDER BY " ++ ", ".intercalate (es.map fun (e, d) => s!"{renderExpr e} {renderDir d}")
   let limit := match q.limit with | some n => s!" LIMIT {n}" | none => ""
-  s!"SELECT {cols} FROM {froms}{joins} WHERE {renderExpr q.cond}{order}{limit}"
+  s!"SELECT {cols}{from_}{joins} WHERE {renderExpr q.cond}{order}{limit}"
 
 instance : ToString Expr  := ⟨renderExpr⟩
 instance : ToString Query := ⟨renderQuery⟩
