@@ -18,14 +18,12 @@ A query is a JSON object:
 }
 ```
 
-- `domains` (required) binds distinct variables, each ranging over a named domain;
-  several bindings form a join. The empty list binds nothing, and the query then
-  ranges over constants, function calls and objects named by their primary keys.
+- `domains` (required) binds one or more distinct variables, each ranging over a
+  named domain; several bindings form a join.
 - `output` (required) is an ordered list of `[name, expression]` pairs. Each name is
   a plain identifier, distinct from the other names, and names a result column whose
   value is the value of the expression. The list order is the column order of every
-  row. Each output expression may refer to the variables bound by `domains`. The
-  empty list names no column, and a row then carries its postprocess columns alone.
+  row. Each output expression may refer to the variables bound by `domains`.
 - `condition` (optional, default `true`) restricts the result to the objects, or
   tuples of objects, that satisfy it; it must have type `bool`.
 - `order` (optional) sorts the result by one or more scalar expressions, each
@@ -45,11 +43,6 @@ A query is a JSON object:
 A query returns the matching rows. Each row is a list of `[name, value]` pairs: the
 output columns in the order `output` names them, then the postprocess columns in the
 order `postprocess` names them. An absent value is `null`.
-
-How many rows there are follows from `domains` and `condition` alone: one per tuple of
-objects satisfying the condition, and one row when `domains` binds nothing and the
-condition holds. Naming no output column therefore changes what a row shows and never
-how many rows there are.
 
 ## Domains
 

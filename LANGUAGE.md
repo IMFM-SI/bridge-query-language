@@ -126,13 +126,11 @@ A query is the top-level form, submitted as JSON:
 ```
 
 - `domains` binds distinct variables `x₁ ∈ D₁, …`; with more than one binding the
-  query ranges over the product of the domains (a join). Binding nothing leaves the
-  query ranging over constants, function calls and objects named by their primary keys.
+  query ranges over the product of the domains (a join).
 - `output` is an ordered list of `[name, e]` pairs; each name is a plain identifier,
   distinct from the other names, and names a result column whose value is the value of
   `e`. The list order is the column order of every row. Each output expression refers
-  to the bound variables. Naming no column leaves a row carrying its postprocess
-  columns alone.
+  to the bound variables.
 - `condition` is an expression of type `Bool` over the bound variables.
 - `order` sorts by expressions, each ascending or descending; an order expression
   may refer to the output columns by name.
@@ -145,12 +143,9 @@ A query is the top-level form, submitted as JSON:
 The `postprocess` entries are evaluated outside the database by the server.
 
 A query returns a list of rows — one per combination of objects satisfying the
-condition, in the requested order, capped by `limit`; binding no variable leaves one
-row where the condition holds. Each row is a list of `[name, value]` pairs: the output
-columns in the order `output` names them, then the postprocess columns in the order
-`postprocess` names them. How many rows there are follows from `domains` and
-`condition` alone, so naming no output column changes what a row shows and never how
-many rows there are.
+condition, in the requested order, capped by `limit`. Each row is a list of
+`[name, value]` pairs: the output columns in the order `output` names them, then the
+postprocess columns in the order `postprocess` names them.
 
 ## Absence
 
