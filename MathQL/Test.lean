@@ -27,12 +27,16 @@ def toyDB : Database where
   postFunction := [(.ident "plus", ([.int, .int], .int), plus)]
   examples := []
 
+/-- String pairs as a JSON array of two-element arrays. -/
+def entries (es : List (String × String)) : Lean.Json :=
+  .arr (es.map fun (a, b) => Lean.Json.arr #[Lean.Json.str a, Lean.Json.str b]).toArray
+
 /-- A query in JSON form binding `g` and `h` to `Graph`, with the given output
     (alias, expression) pairs and condition. -/
 def jq (output : List (String × String)) (condition : String) : Lean.Json :=
   json% {
     "domains":   [["g", "Graph"], ["h", "Graph"]],
-    "output":    $(Lean.Json.mkObj (output.map fun (a, e) => (a, Lean.Json.str e))),
+    "output":    $(entries output),
     "condition": $(Lean.toJson condition)
   }
 
@@ -41,23 +45,19 @@ def jqOrder (output : List (String × String)) (condition : String)
     (order : List (String × String)) : Lean.Json :=
   json% {
     "domains":   [["g", "Graph"], ["h", "Graph"]],
-    "output":    $(Lean.Json.mkObj (output.map fun (a, e) => (a, Lean.Json.str e))),
+    "output":    $(entries output),
     "condition": $(Lean.toJson condition),
-    "order":     $(Lean.Json.arr (order.map fun (e, d) =>
-                     Lean.Json.arr #[Lean.Json.str e, Lean.Json.str d]).toArray)
+    "order":     $(entries order)
   }
 
-/-- A query in JSON form like `jq`, with a `postprocess` stage. The stage is an
-    array, not an object, because its entries are sequentially scoped and their
-    order is meaningful. -/
+/-- A query in JSON form like `jq`, with a `postprocess` stage. -/
 def jqPost (output : List (String × String)) (condition : String)
     (post : List (String × String)) : Lean.Json :=
   json% {
     "domains":     [["g", "Graph"], ["h", "Graph"]],
-    "output":      $(Lean.Json.mkObj (output.map fun (a, e) => (a, Lean.Json.str e))),
+    "output":      $(entries output),
     "condition":   $(Lean.toJson condition),
-    "postprocess": $(Lean.Json.arr (post.map fun (n, e) =>
-                       Lean.Json.arr #[Lean.Json.str n, Lean.Json.str e]).toArray)
+    "postprocess": $(entries post)
   }
 
 /-- Does the JSON query `j` decode and type-check against `toyDB`? -/
@@ -174,13 +174,25 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 -- since its context carries no domains.
 #guard !elaborates (jqPost [("n", "g.n")] "true" [("k", "g.n")])
 
--- An object is rejected outright rather than accepted in sorted key order.
+-- Both clauses are arrays: an object is rejected outright rather than accepted in
+-- sorted key order.
 #guard !elaborates (json% {
   "domains":     [["g", "Graph"]],
-  "output":      {"n": "g.n"},
+  "output":      [["n", "g.n"]],
   "condition":   "true",
   "postprocess": {"k": "plus(n, 1)"}
 })
+#guard !elaborates (json% {
+  "domains":   [["g", "Graph"]],
+  "output":    {"n": "g.n"},
+  "condition": "true"
+})
+
+-- Output columns keep the order they were written in, which an object could not
+-- express: `Lean.Json` returns an object's keys sorted.
+#guard match renderOf (jq [("zeta", "g.n"), ("alpha", "g.n")] "true") with
+  | .ok s => s.startsWith "SELECT \"g\".\"n\" AS \"zeta\", \"g\".\"n\" AS \"alpha\""
+  | .error _ => false
 
 -- Postprocess fields are computed after SQL, so the stage contributes no alias to
 -- the query: `"n"` is selected, `"k"` appears nowhere in the rendered SQL.

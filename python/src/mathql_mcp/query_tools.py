@@ -1,7 +1,7 @@
 """The MathQL query tools: `query`, `describe`, `grammar`, and the grammar resource."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -29,19 +29,19 @@ def register(
 
     @mcp.tool()
     def query(
-        domains: list[list[str]],
-        output: dict[str, str],
+        domains: list[tuple[str, str]],
+        output: list[tuple[str, str]],
         condition: Optional[str] = None,
-        order: Optional[list[list[str]]] = None,
+        order: Optional[list[tuple[str, Literal["asc", "desc"]]]] = None,
         limit: Optional[int] = None,
         database: Optional[str] = None,
     ) -> list:
         """Run a MathQL query and return the matching rows.
 
         domains: variable bindings, e.g. [["g", "Graph"]].
-        output: a mapping from result column name to the expression it returns,
-            e.g. {"g6": "id(g)", "edges": "g.num_edges"}. Each expression is over
-            the bound variables (see the grammar tool).
+        output: [column name, expression] pairs, in the order the columns are to
+            appear, e.g. [["g6", "id(g)"], ["edges", "g.num_edges"]]. Each
+            expression is over the bound variables (see the grammar tool).
         condition: a boolean expression over the bound variables (optional).
         order: [expression, "asc"|"desc"] pairs; the expressions may refer to the
             output column names (optional).
