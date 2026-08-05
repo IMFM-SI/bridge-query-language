@@ -18,10 +18,9 @@ structure Query where
 rendered as `<expr> AS <alias>`; a hoisted join renders as `LEFT JOIN`, so its
 columns are NULL wherever the match is empty.
 
-A query selecting no column renders `SELECT 1`, the smallest select list SQL
-admits, and a query over no table renders without a `FROM` clause. A hoisted
-join over no table takes `(SELECT 1)`, a source of one row, as the left operand
-that `LEFT JOIN` requires. -/
+A query selecting no column renders `SELECT 1`, a query over no table renders
+without a `FROM` clause, and a hoisted join over no table renders with
+`(SELECT 1)`, a source of one row, to its left. -/
 def renderQuery (q : Query) : String :=
   let joins := String.join <| q.joins.map fun (table, alias, eqs) =>
     let conds := eqs.map fun (col, e) =>
