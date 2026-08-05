@@ -5,7 +5,6 @@ import MathQL.Expr
 import MathQL.Rules
 import MathQL.Database
 import MathQL.Query
-import MathQL.Postprocess
 
 namespace MathQL
 

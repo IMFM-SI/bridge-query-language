@@ -2,7 +2,6 @@ import MathQL.Compile
 import MathQL.Database
 import SQLite
 import Lean.Data.Json
-import MathQL.Postprocess
 
 /-! Execution of a type-checked query against a SQLite connection, producing a
 JSON array of result rows. Each output column is read at its declared type and

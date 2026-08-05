@@ -1,4 +1,5 @@
-import MathQL
+import MathQL.Ty
+import MathQL.Database
 import Lean.Data.Json
 
 /-!

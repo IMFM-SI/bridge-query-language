@@ -1,6 +1,8 @@
+import SQLite
+
 import MathQL.GraphsSmallDB
 import MathQL.SymObSmallDB
-import SQLite
+import MathQL
 
 /-! The `mathql` executable: a persistent query engine driven over stdin/stdout.
 
