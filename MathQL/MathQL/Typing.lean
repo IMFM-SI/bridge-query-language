@@ -237,10 +237,9 @@ def checkPostprocess (Γ : Context) :
 def checkQuery
   (D : Database)
   (q : Input.Query) : Result Query := do
-  let sqlΓ := D.getSqlContext
-  let ⟨Γ, vars⟩ ← checkDomainVars sqlΓ [] (q.domains.map fun b => (b.var, b.domain))
-  let ⟨condition, _⟩ ← check sqlΓ (q.condition.getD (.bool true)) .bool
-  let output ← checkOutput sqlΓ q.output
+  let ⟨Γ, vars⟩ ← checkDomainVars D.getSqlContext [] (q.domains.map fun b => (b.var, b.domain))
+  let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
+  let output ← checkOutput Γ q.output
   let Δ := output.foldl (fun Δ (x, t, _) => Δ.extendIdent x t) Γ
   let order ← checkOrder Δ (q.order.getD [])
   let postprocess ← checkPostprocess D.getPostContext q.postprocess
