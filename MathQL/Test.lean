@@ -222,6 +222,24 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard postOf (jqPost [("d", "g.ds")] "true" [("b", "d == [2, 2]")]) [("d", json% [2, 2])]
        == some [("b", json% true)]
 
+-- `defined` and `undefined` identify a raise with null: a present value is defined,
+-- and both a null value and a failed evaluation are undefined.
+#guard postOf (jqPost [("n", "g.n")] "true" [("a", "defined n"), ("b", "undefined n")])
+         [("n", json% 5)]
+       == some [("a", json% true), ("b", json% false)]
+#guard postOf (jqPost [("n", "g.n")] "true" [("a", "defined n"), ("b", "undefined n")])
+         [("n", Lean.Json.null)]
+       == some [("a", json% false), ("b", json% true)]
+#guard postOf (jqPost [("n", "g.n")] "true"
+         [("a", "defined plus(n, 1)"), ("b", "undefined plus(n, 1)")])
+         [("n", json% "not a number")]
+       == some [("a", json% false), ("b", json% true)]
+
+-- A null output column is undefined in a postprocess entry, as `IS NULL` finds it
+-- in a condition.
+#guard postOf (jqPost [("n", "g.n")] "true" [("k", "undefined n")]) [("n", Lean.Json.null)]
+       == some [("k", json% true)]
+
 -- SQL expression rendering (shown for review, not asserted).
 #eval IO.println (toString (SQL.Expr.binop .and
   (.compare .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))

@@ -94,6 +94,11 @@ def evalComparison (op : ComparisonOp) (t : Ty) (j1 : Lean.Json) (j2 : Lean.Json
       | .gt => c.isGT
       | .ge => c.isGE
 
+/-- Whether a result is a non-null value; a failure counts as null. -/
+def isDefined : Result Lean.Json → Bool
+| .ok .null | .error _ => false
+| .ok _ => true
+
 def evalPostExpr (env : PostEnvironment) : Expr → Result Lean.Json
 
 | .int n => return .num n
@@ -154,12 +159,10 @@ def evalPostExpr (env : PostEnvironment) : Expr → Result Lean.Json
   | .error msg => throw s!"boolean expected ({msg})"
 
 | .defined e =>
-  let r := evalPostExpr env e
-  return .bool r.toBool
+  return .bool (isDefined (evalPostExpr env e))
 
 | .undefined e =>
-  let r := evalPostExpr env e
-  return .bool (not r.toBool)
+  return .bool (not (isDefined (evalPostExpr env e)))
 
 
 def evalPostprocess (env : PostEnvironment) :
