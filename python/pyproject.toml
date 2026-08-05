@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy", "ruff"]
+dev = ["mypy", "pytest", "ruff"]
 
 [project.scripts]
 mathql-mcp = "mathql_mcp.server:main"

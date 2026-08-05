@@ -1,6 +1,7 @@
 """The natural-language orientation handed to the model as the server's instructions."""
 
 import json
+from typing import Any
 
 SUMMARY = """## Writing queries
 `query` takes: domains (e.g. [["g", "Graph"]]); output, a mapping from each result
@@ -24,7 +25,7 @@ tools decode it (vertices are numbered 0..n-1):
 - `coloring` — a proper coloring (greedy; may exceed the chromatic number)."""
 
 
-def _database_section(name: str, schema: dict) -> list[str]:
+def _database_section(name: str, schema: dict[str, Any]) -> list[str]:
     """The instruction lines for one database: overview, domains, two examples."""
     lines = [f"## Database `{name}`", schema.get("overview", ""), "", "### Domains and fields"]
     for domain in schema.get("domains", []):
@@ -46,13 +47,15 @@ def _database_section(name: str, schema: dict) -> list[str]:
     return lines
 
 
-def build_instructions(schemas: dict) -> str:
+def build_instructions(schemas: dict[str, dict[str, Any]]) -> str:
     """A natural-language orientation for the model, built from the databases' schemas."""
     default = next(iter(schemas), "")
     lines = [
-        f"Databases served: {', '.join(schemas)}. `query` and `describe` take a "
-        f"`database` parameter selecting one (default: {default}); `describe` with "
-        "no arguments lists them.",
+        (
+            f"Databases served: {', '.join(schemas)}. `query` and `describe` take a "
+            f"`database` parameter selecting one (default: {default}); `describe` with "
+            "no arguments lists them."
+        ),
         "",
     ]
     for name, schema in schemas.items():

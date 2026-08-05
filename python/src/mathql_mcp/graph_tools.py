@@ -4,8 +4,9 @@ These run on the Python side after the engine returns rows, so they decode and i
 a graph; they are not queryable fields. Vertices are numbered 0..n-1.
 """
 
-import networkx
+from typing import Any
 
+import networkx
 from mcp.server.fastmcp import FastMCP
 
 
@@ -13,7 +14,7 @@ def register(mcp: FastMCP) -> None:
     """Register the graph-inspection tools on `mcp`."""
 
     @mcp.tool()
-    def edge_list(graph6: str) -> dict:
+    def edge_list(graph6: str) -> dict[str, Any]:
         """Decode a graph6 string to its edge list.
 
         Returns {"num_vertices": n, "edges": [[u, v], ...]} with vertices 0..n-1; the
@@ -32,7 +33,7 @@ def register(mcp: FastMCP) -> None:
         return sorted(g.neighbors(vertex))
 
     @mcp.tool()
-    def shortest_path(graph6: str, source: int, target: int) -> dict:
+    def shortest_path(graph6: str, source: int, target: int) -> dict[str, Any]:
         """A shortest path between `source` and `target` (0-indexed).
 
         Returns {"length": k, "path": [source, ..., target]}; "path" is absent and
@@ -72,7 +73,7 @@ def register(mcp: FastMCP) -> None:
         return [sorted(component) for component in networkx.connected_components(g)]
 
     @mcp.tool()
-    def coloring(graph6: str) -> dict:
+    def coloring(graph6: str) -> dict[str, Any]:
         """A proper vertex coloring, computed greedily (DSATUR).
 
         Returns {"num_colors": k, "coloring": [[vertex, color], ...]} with colors

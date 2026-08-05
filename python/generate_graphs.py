@@ -11,11 +11,13 @@ import math
 import sqlite3
 import subprocess
 import sys
-from collections.abc import Callable
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 
 import networkx as nx
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_VERTICES = 8
 GENG = "geng"
@@ -119,7 +121,7 @@ def row_for(graph6: str) -> list[object]:
 def main(max_vertices: int) -> None:
     if DB_PATH.exists():
         raise SystemExit(f"refusing to overwrite existing database {DB_PATH}")
-    logging.info("creating %s, graphs on up to %d vertices", DB_PATH, max_vertices)
+    logger.info("creating %s, graphs on up to %d vertices", DB_PATH, max_vertices)
     connection = sqlite3.connect(DB_PATH)
     connection.execute(
         "CREATE TABLE graph (id INTEGER PRIMARY KEY, "
@@ -132,11 +134,11 @@ def main(max_vertices: int) -> None:
     )
     for n in range(1, max_vertices + 1):
         graph6s = generate(n)
-        logging.info("n = %d: %d graphs, computing invariants", n, len(graph6s))
+        logger.info("n = %d: %d graphs, computing invariants", n, len(graph6s))
         connection.executemany(insert, (row_for(g6) for g6 in graph6s))
         connection.commit()
     connection.close()
-    logging.info("done, wrote %s", DB_PATH)
+    logger.info("done, wrote %s", DB_PATH)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any, cast
 
 
 class Engine:
@@ -28,7 +28,7 @@ class Engine:
             self.cmd = ["lake", "exe", "mathql", name, str(db_path)]
         self.cwd = str(mathql_dir)
         self.lock = threading.Lock()
-        self.proc: Optional[subprocess.Popen] = None
+        self.proc: subprocess.Popen[str] | None = None
         self._start()
 
     def _start(self) -> None:
@@ -38,7 +38,7 @@ class Engine:
             text=True, bufsize=1,
         )
 
-    def request(self, obj: dict) -> dict:
+    def request(self, obj: dict[str, Any]) -> dict[str, Any]:
         """Send one request object and return the decoded response object."""
         with self.lock:
             if self.proc is None or self.proc.poll() is not None:
@@ -51,4 +51,4 @@ class Engine:
             if not response:
                 self._start()
                 raise RuntimeError("mathql engine exited without responding")
-            return json.loads(response)
+            return cast(dict[str, Any], json.loads(response))
