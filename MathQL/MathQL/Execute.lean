@@ -71,18 +71,28 @@ def evalBinaryOp : BinaryOp → Lean.Json → Lean.Json → Result Lean.Json
   let k2 ← v2.getInt?
   return .num (k1 * k2)
 
-def evalComparison (op : ComparisonOp) (j1 : Lean.Json) (j2 : Lean.Json) : Result Lean.Json := do
-  let k1 ← j1.getInt?
-  let k2 ← j2.getInt?
-  let f : Int → Int → Bool :=
-    match op with
-    | .eq => (· == ·)
-    | .ne => (· != ·)
-    | .lt => (· < ·)
-    | .le => (· <= ·)
-    | .gt => (· > ·)
-    | .ge => (· >= ·)
-  return .bool (f k1 k2)
+/-- Compare two JSON values at their MathQL type. -/
+def compareJson : Ty → Lean.Json → Lean.Json → Result Ordering
+| .int, j1, j2 => do return compare (← j1.getInt?) (← j2.getInt?)
+| .bool, j1, j2 => do return compare (← j1.getBool?) (← j2.getBool?)
+| .string, j1, j2 => do return compare (← j1.getStr?) (← j2.getStr?)
+| .list _, j1, j2
+| .prod _, j1, j2 => return compare j1.compress j2.compress
+
+def evalComparison (op : ComparisonOp) (t : Ty) (j1 : Lean.Json) (j2 : Lean.Json) :
+    Result Lean.Json :=
+  match j1, j2 with
+  | .null, _ | _, .null => return .null
+  | _, _ => do
+    let c ← compareJson t j1 j2
+    return .bool <|
+      match op with
+      | .eq => c.isEq
+      | .ne => c.isNe
+      | .lt => c.isLT
+      | .le => c.isLE
+      | .gt => c.isGT
+      | .ge => c.isGE
 
 def evalPostExpr (env : PostEnvironment) : Expr → Result Lean.Json
 
@@ -119,10 +129,10 @@ def evalPostExpr (env : PostEnvironment) : Expr → Result Lean.Json
   let v2 ← evalPostExpr env e2
   evalBinaryOp op v1 v2
 
-| .compare op _ e1 e2 => do
+| .compare op t e1 e2 => do
   let v1 ← evalPostExpr env e1
   let v2 ← evalPostExpr env e2
-  evalComparison op v1 v2
+  evalComparison op t v1 v2
 
 | .list es => do
   let vs ← es.mapM (evalPostExpr env)
