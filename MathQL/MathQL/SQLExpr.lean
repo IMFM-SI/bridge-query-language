@@ -26,6 +26,10 @@ def Expr.jsonArray' : List Expr → Expr
 | [e] => e
 | es => .jsonArray es
 
+def Expr.isLiteral : Expr → Bool
+| .int _ | .bool _ | .str _ | .null => true
+| _ => false
+
 /-- The SQL text of a binary operator. -/
 def renderBinop : BinaryOp → String
   | .and => "AND" | .or => "OR"

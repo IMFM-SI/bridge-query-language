@@ -282,9 +282,9 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     let Δ : SqlCtx :=
       { Γ with ident := (columns.map fun (x, a, _) => (x, .const (.ref a))) ++ Γ.ident }
     let cond ← compileExpr Γ q.condition
-    let order ← q.order.mapM fun ((e, dir) : Expr × Direction) => do
+    let order ← q.order.filterMapM fun ((e, dir) : Expr × Direction) => do
       let s ← compileExpr Δ e
-      return (s, dir)
+      return if s.isLiteral then none else some (s, dir)
     return (froms, output, cond, order)
   match act.run { nextAlias := 1, varAlias := [], joins := [], hoisted := [] } with
   | .error e => throw e

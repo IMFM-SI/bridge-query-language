@@ -149,6 +149,15 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
   | .ok s => (s.splitOn "graph6").length == 1
   | .error _ => false
 
+-- An order key that compiles to a literal discriminates nothing, so it is dropped;
+-- an integer would otherwise read as a column position.
+#guard match renderOf (jqOrder [("m", "g.n")] "true" [("1", "asc")]) with
+  | .ok s => (s.splitOn "ORDER BY").length == 1
+  | .error _ => false
+#guard match renderOf (jqOrder [("m", "g.n")] "true" [("1", "asc"), ("g.n", "desc")]) with
+  | .ok s => s.endsWith "ORDER BY c1.\"n\" DESC"
+  | .error _ => false
+
 -- The alias renders bare in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
   | .ok s => s.endsWith "ORDER BY c3 DESC"
