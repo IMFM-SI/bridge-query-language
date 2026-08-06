@@ -157,6 +157,10 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("1", "asc"), ("g.n", "desc")]) with
   | .ok s => s.endsWith "ORDER BY c1.\"n\" DESC"
   | .error _ => false
+#guard match renderOf (jqOrder [("m", "g.n")] "true"
+                        [("1", "asc"), ("'abc'", "desc"), ("true", "asc")]) with
+  | .ok s => s.endsWith "WHERE 1"
+  | .error _ => false
 
 -- The alias renders bare in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with

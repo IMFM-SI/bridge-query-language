@@ -171,10 +171,16 @@ A database connects the language to storage. It maps:
 - a **constant** → a fixed SQL expression;
 - a **function** available in the compiled clauses → the SQL function the database
   names for it;
-- a query's **condition** → a SQL `WHERE`; its **output** → selected expressions
-  under their column aliases, each result cell decoded at its declared type; its
-  **order** → `ORDER BY`, where a reference to an output column renders as the bare
-  alias; its **limit** → `LIMIT`.
+- a query's **condition** → a SQL `WHERE`; its **output** → selected expressions,
+  each result cell decoded at its declared type and returned under the name the
+  query gave it; its **order** → `ORDER BY`, dropping a key that compiles to a
+  constant and omitting the clause when every key does; its **limit** → `LIMIT`.
+
+Every table and every output column of the compiled `SELECT` carries an alias the
+compiler generates — `c1`, `c2`, … — and a key of the order clause naming an output
+column renders as that column's alias. The compiler draws the names from a predicate
+the caller supplies, which accepts a name when no table of the database has a column
+of that name.
 
 Lists and products are realized as JSON arrays: a list or tuple literal compiles to
 `json_array(…)`, a tuple projection to `json_extract(…)`, and a comparison of lists or
