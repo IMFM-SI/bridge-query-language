@@ -30,8 +30,10 @@ def entriesFromJson (j : Json) : Except String (List (String × Expr)) := do
   entries.toList.mapM fun entry => do
     match (← entry.getArr?).toList with
     | [n, e] =>
-      let name ← Parsing.parseIdent (← n.getStr?)
-      let expr ← Parsing.parseExpr (← e.getStr?)
+      let nameText ← n.getStr?
+      let exprText ← e.getStr?
+      let name ← Parsing.parseIdent nameText
+      let expr ← Parsing.parseExpr exprText
       return (name, expr)
     | _ => throw "an entry must be a [name, expression] pair"
 
@@ -39,8 +41,10 @@ instance : FromJson Binding where
   fromJson? j := do
     match (← j.getArr?).toList with
     | [v, d] =>
-      let var ← Parsing.parseIdent (← v.getStr?)
-      let domain ← Parsing.parseIdent (← d.getStr?)
+      let varText ← v.getStr?
+      let domainText ← d.getStr?
+      let var ← Parsing.parseIdent varText
+      let domain ← Parsing.parseIdent domainText
       return { var, domain }
     | _ => throw "a domain binding must be a [variable, domain] pair"
 
@@ -48,7 +52,8 @@ instance : FromJson OrderEntry where
   fromJson? j := do
     match (← j.getArr?).toList with
     | [e, d] =>
-      let expr ← Parsing.parseExpr (← e.getStr?)
+      let exprText ← e.getStr?
+      let expr ← Parsing.parseExpr exprText
       let dir ← fromJson? d
       return { expr, dir }
     | _ => throw "an order entry must be an [expression, direction] pair"
@@ -63,7 +68,8 @@ private def optField {α} [FromJson α] (j : Json) (key : String) : Except Strin
 def Query.fromJson (j : Json) : Except String Query := do
   let domainsJ ← j.getObjVal? "domains"
   let domains ← (fromJson? domainsJ : Except String (List Binding))
-  let output ← entriesFromJson (← j.getObjVal? "output")
+  let outputJ ← j.getObjVal? "output"
+  let output ← entriesFromJson outputJ
   let condition ← optField j "condition"
   let order ← optField j "order"
   let limit ← optField j "limit"

@@ -20,11 +20,12 @@ private def sepBy {α} (p : Parser α) (sep : Parser Unit) : Parser (List α) :=
   (sepBy1 p sep) <|> pure []
 
 private partial def chainl1Core {α} (p : Parser α) (op : Parser (α → α → α)) (l : α) : Parser α :=
-  (do let f ← op; chainl1Core p op (f l (← p))) <|> pure l
+  (do let f ← op; let r ← p; chainl1Core p op (f l r)) <|> pure l
 
 /-- One or more `p`, combined left-associatively by `op`. -/
 private def chainl1 {α} (p : Parser α) (op : Parser (α → α → α)) : Parser α := do
-  chainl1Core p op (← p)
+  let l ← p
+  chainl1Core p op l
 
 private def isIdentStart (c : Char) : Bool := c.isAlpha
 private def isIdentRest (c : Char) : Bool := c.isAlphanum || c == '_'

@@ -9,11 +9,13 @@ namespace MathQL.Column
 
 /-- An INTEGER column as an `Int`. -/
 def int : SQLite.RowReader Int := do
-  return (← (SQLite.RowReader.field : SQLite.RowReader Int64)).toInt
+  let i ← (SQLite.RowReader.field : SQLite.RowReader Int64)
+  return i.toInt
 
 /-- A non-negative INTEGER column as a `Nat`. -/
 def nat : SQLite.RowReader Nat := do
-  return (← int).toNat
+  let i ← int
+  return i.toNat
 
 /-- A `0`/`1` INTEGER column as a `Bool`. -/
 def bool : SQLite.RowReader Bool := SQLite.RowReader.field
@@ -23,7 +25,8 @@ def string : SQLite.RowReader String := SQLite.RowReader.field
 
 /-- A nullable non-negative INTEGER column as an `Option Nat`. -/
 def natOption : SQLite.RowReader (Option Nat) := do
-  return (← (SQLite.RowReader.field : SQLite.RowReader (Option Int64))).map fun i => i.toInt.toNat
+  let i ← (SQLite.RowReader.field : SQLite.RowReader (Option Int64))
+  return i.map fun i => i.toInt.toNat
 
 /-- A TEXT column holding a JSON array of naturals as a `List Nat`. -/
 def natList : SQLite.RowReader (List Nat) := do
