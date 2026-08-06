@@ -73,9 +73,18 @@ def evalBinaryOp : BinaryOp → Lean.Json → Lean.Json → Result Lean.Json
 
 /-- Compare two JSON values at their MathQL type. -/
 def compareJson : Ty → Lean.Json → Lean.Json → Result Ordering
-| .int, j1, j2 => do return compare (← j1.getInt?) (← j2.getInt?)
-| .bool, j1, j2 => do return compare (← j1.getBool?) (← j2.getBool?)
-| .string, j1, j2 => do return compare (← j1.getStr?) (← j2.getStr?)
+| .int, j1, j2 => do
+  let k1 ← j1.getInt?
+  let k2 ← j2.getInt?
+  return compare k1 k2
+| .bool, j1, j2 => do
+  let b1 ← j1.getBool?
+  let b2 ← j2.getBool?
+  return compare b1 b2
+| .string, j1, j2 => do
+  let s1 ← j1.getStr?
+  let s2 ← j2.getStr?
+  return compare s1 s2
 | .list _, j1, j2
 | .prod _, j1, j2 => return compare j1.compress j2.compress
 
@@ -188,8 +197,9 @@ partial def collectRows
     return acc
 
 /-- Run a type-checked query against an open SQLite connection, as a JSON array of rows. -/
-def run (db : SQLite) (D : Database) (q : Query) : IO (Except String Lean.Json) := do
-  match compileQuery D q with
+def run (db : SQLite) (D : Database) (isSafeAlias : String → Bool) (q : Query) :
+    IO (Except String Lean.Json) := do
+  match compileQuery D isSafeAlias q with
   | .error e => return .error e
   | .ok sql =>
     let stmt ← db.prepare (toString sql)

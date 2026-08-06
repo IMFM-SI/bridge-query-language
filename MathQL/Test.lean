@@ -4,7 +4,10 @@ open MathQL
 
 /-- `plus : (int, int) → int`. -/
 def plus : List Lean.Json → Result Lean.Json
-  | [a, b] => do return .num ((← a.getInt?) + (← b.getInt?))
+  | [a, b] => do
+    let m ← a.getInt?
+    let n ← b.getInt?
+    return .num (m + n)
   | _ => throw "plus expects two arguments"
 
 /-- A toy database for exercising the parser, type-checker, and compiler: one
@@ -64,10 +67,14 @@ def jqPost (output : List (String × String)) (condition : String)
 def elaborates (j : Lean.Json) : Bool :=
   (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).isSome
 
+/-- A name is a safe alias for `toyDB` when it is none of the column names of `graph`. -/
+def toySafeAlias (s : String) : Bool :=
+  !["graph6", "n", "planar", "ds", "rowid", "oid", "_rowid_"].contains s.toLower
+
 /-- The SQL text of the JSON query `j` against `toyDB`, or the error. -/
 def renderOf (j : Lean.Json) : Except String String :=
   Input.Query.fromJson j |>.bind (checkQuery toyDB)
-    |>.bind (compileQuery toyDB) |>.map toString
+    |>.bind (compileQuery toyDB toySafeAlias) |>.map toString
 
 /-- Does the JSON query `j` decode, type-check, and compile against `toyDB`? -/
 def compiles (j : Lean.Json) : Bool :=

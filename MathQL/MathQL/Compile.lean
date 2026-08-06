@@ -32,6 +32,8 @@ structure SqlCtx where
   schema : List (DomainName × Schema)
   /-- The mapping from MathQL function names to SQL functions -/
   function : List (Ident × String)
+  /-- Is a name free of the column names of the database, and so usable as an alias? -/
+  isSafeAlias : String → Bool
 
 /-- The state of a compilation: the aliases in use, the hoisted joins (table,
     alias, `ON` condition), and the mapping from hoisted domain expressions to
@@ -246,8 +248,10 @@ termination_by es => sizeOf es
 
 end
 
-/-- Compile a type-checked query to a SQL query. -/
-def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
+/-- Compile a type-checked query to a SQL query, with `isSafeAlias` deciding which
+    names may serve as aliases. -/
+def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
+    Result SQL.Query := do
   let froms ← q.vars.mapM fun (x, n) =>
     match D.domain.lookup n with
     | some dom => pure (dom.table, x.name)
@@ -257,6 +261,7 @@ def compileQuery (D : Database) (q : Query) : Result SQL.Query := do
                (D.const.map fun (x, _, s) => (x, .const s))
       function := D.sqlFunction.map (fun ⟨f, _, c⟩ => (f ,c))
       schema := D.domain
+      isSafeAlias := isSafeAlias
     }
   let Δ : SqlCtx :=
     { Γ with ident := (q.output.map fun (x, _, _) => (x, .const (.ref x.name))) ++ Γ.ident }
