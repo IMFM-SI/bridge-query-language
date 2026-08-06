@@ -105,9 +105,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard !elaborates (json% { "domains": [["g", "Graph"], ["g", "Graph"]],
                             "output": $(entries [("n", "g.n")]) })
 
--- An empty clause renders the SQL that says it. Over no table the `FROM` clause is
--- absent, a hoisted join takes `(SELECT 1)` as its left operand, and a query selecting
--- no column selects `1`, which is the smallest select list SQL admits.
+-- The rendering of an empty clause.
 #guard match renderOf (json% { "domains": [], "output": $(entries [("x", "2 + 2")]) }) with
   | .ok s => s == "SELECT (2 + 2) AS \"x\" WHERE 1"
   | .error _ => false

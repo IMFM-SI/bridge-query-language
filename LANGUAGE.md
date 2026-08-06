@@ -1,8 +1,8 @@
 # The MathQL language
 
 MathQL is a small typed language for querying databases of mathematical objects. A
-query names one or more domains of objects, a condition they must satisfy, and what
-to return. This document describes the types, the expression language and its
+query names the domains of objects it ranges over, a condition they must satisfy, and
+what to return. This document describes the types, the expression language and its
 bidirectional typing, the shape of a query, and how a query is realized against a
 concrete database. It tracks the Lean implementation under `MathQL/`. The concrete
 syntax and operator precedence of expressions are in
