@@ -35,12 +35,12 @@ structure SqlCtx where
   /-- Is a name free of the column names of the database, and so usable as an alias? -/
   isSafeAlias : String → Bool
 
-/-- The state of a compilation: the aliases in use, the hoisted joins (table,
+/-- The state of a compilation: the next alias to try, the hoisted joins (table,
     alias, `ON` condition), and the mapping from hoisted domain expressions to
     their alias and domain. -/
 structure CompileState where
-  /-- Currently used aliases (needed to generate fresh ones)-/
-  taken : List Alias
+  /-- The index of the next candidate alias -/
+  nextAlias : Nat
   /-- Current left joins -/
   joins : List (String × Alias × List (String × SQL.Expr))
   /-- Domains that have so far been hoisted to left joins -/
@@ -71,39 +71,33 @@ def lookupHoist (d : Domain) : CompileM (Option (Alias × DomainName)) := do
 def storeHoist (d : Domain) (a : Alias) (dn : DomainName): CompileM Unit := do
   modify fun st => { st with hoisted := (d, (a, dn)) :: st.hoisted }
 
-/-- `stem`, or the first `stemₖ` (k ≥ 2) free of `taken`; `none` when `fuel`
-    candidates are all taken. -/
-def firstFree (taken : List Alias) (stem : String) : Nat → Nat → Option String
-  | 0, _ => none
-  | fuel + 1, i =>
-    let cand := if i == 0 then stem else s!"{stem}{i + 1}"
-    if taken.any fun t => t.name.toLower == cand.toLower
-    then firstFree taken stem fuel (i + 1)
-    else some cand
+/-- How many candidates `firstSafe` tries before it gives up. -/
+private def aliasFuel : Nat := 1000
 
-/-- A fresh alias formed from `stem`. -/
-def freshAlias (stem : String) : CompileM Alias := do
+/-- The first of `cₙ`, `cₙ₊₁`, … that `isSafeAlias` accepts, with its index. -/
+private def firstSafe (isSafeAlias : String → Bool) (n : Nat) : Nat → Option (String × Nat)
+  | 0 => none
+  | fuel + 1 =>
+    let cand := s!"c{n}"
+    if isSafeAlias cand then some (cand, n) else firstSafe isSafeAlias (n + 1) fuel
+
+/-- A fresh alias that `Γ.isSafeAlias` accepts. -/
+def freshSafeAlias (Γ : SqlCtx) : CompileM Alias := do
   let st ← get
-  match firstFree st.taken stem (st.taken.length + 1) 0 with
-  | some name =>
-    modify fun st => { st with taken := .alias name :: st.taken }
+  match firstSafe Γ.isSafeAlias st.nextAlias aliasFuel with
+  | some (name, n) =>
+    modify fun st => { st with nextAlias := n + 1 }
     return .alias name
-  | none => throw "internal error: no fresh alias available"
-
-/-- The stem of the alias of a hoisted domain expression. -/
-def domainStem : Domain → String
-  | .ident x => x.name
-  | .obj d _ => d.name
-  | .field e l => domainStem e ++ "_" ++ l.name
+  | none => throw "internal error: no safe alias available"
 
 def getPrimaryKey (Γ : SqlCtx) (dn : DomainName) : CompileM (List Column) := do
   let sch ← Γ.getSchema dn
   return (sch.column.map Prod.snd).filter Column.isPrimary
 
-def mkJoin (table : String) (stem : String) (eqs : List (String × SQL.Expr))
+def mkJoin (Γ : SqlCtx) (table : String) (eqs : List (String × SQL.Expr))
   : CompileM Alias
   := do
-  let alias ← freshAlias stem
+  let alias ← freshSafeAlias Γ
   modify (fun st => { st with joins := (table, alias, eqs) :: st.joins })
   return alias
 
@@ -127,7 +121,7 @@ def compileDomain (Γ : SqlCtx) (d : Domain) : CompileM (Alias × DomainName) :=
     | none =>
       let sch ← Γ.getSchema dn
       let ks ← compileExprList Γ es
-      let a ← mkJoin sch.table (domainStem d) (List.zip sch.primaryColumns ks)
+      let a ← mkJoin Γ sch.table (List.zip sch.primaryColumns ks)
       storeHoist d a dn
       return (a, dn)
 
@@ -140,7 +134,7 @@ def compileDomain (Γ : SqlCtx) (d : Domain) : CompileM (Alias × DomainName) :=
       let f ← sch.getForeignKey l
       let fsch ← Γ.getSchema f.domain
       let eqs := f.column.map (fun (c, c') => (c', .col a'.name c))
-      let a ← mkJoin fsch.table (domainStem d) eqs
+      let a ← mkJoin Γ fsch.table eqs
       storeHoist d a f.domain
       return (a, f.domain)
 
@@ -274,7 +268,7 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
       let s ← compileExpr Δ e
       return (s, dir)
     return (output, cond, order)
-  match act.run { taken := q.vars.map fun (x, _) => .alias x.name, joins := [], hoisted := [] } with
+  match act.run { nextAlias := 1, joins := [], hoisted := [] } with
   | .error e => throw e
   | .ok ((output, cond, order), st) =>
     let joins := st.joins.reverse.map fun (table, alias, eqs) => (table, alias.name, eqs)

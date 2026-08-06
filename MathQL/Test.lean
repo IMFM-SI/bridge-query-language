@@ -118,8 +118,8 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
   | .error _ => false
 #guard match renderOf (json% { "domains": [],
                                "output": $(entries [("n", "Graph['abc'].n")]) }) with
-  | .ok s => s == "SELECT \"Graph\".\"n\" AS \"n\" FROM (SELECT 1)"
-                  ++ " LEFT JOIN \"graph\" AS \"Graph\" ON \"Graph\".\"graph6\" = 'abc' WHERE 1"
+  | .ok s => s == "SELECT \"c1\".\"n\" AS \"n\" FROM (SELECT 1)"
+                  ++ " LEFT JOIN \"graph\" AS \"c1\" ON \"c1\".\"graph6\" = 'abc' WHERE 1"
   | .error _ => false
 #guard match renderOf (json% { "domains": [["g", "Graph"]], "output": [],
                                "condition": "g.n > 3" }) with
