@@ -1,14 +1,14 @@
 # MathQL
 
-MathQL is a query language for databasess of mathematical objects, such as groups,
+MathQL is a query language for databases of mathematical objects, such as groups,
 graphs, knots, lattices, regular maps, abstract polytopes, etc.  Such objects are stored
 together with a collection of computed invariants that MathQL may query.
 
-The intended user for MatQL is an automated agent accessing it through MCP.
+The intended user for MathQL is an automated agent accessing it through MCP.
 
 A database comprises several **domains**, each of which is a coherent collection
 of mathematical objects. In the database it corresponds to a table or a view,
-while in the query langauge it appears as a domain of a variable.
+while in the query language it appears as a domain of a variable.
 
 A MathQL query is a JSON object. It specifies which domains the query ranges over,
 what condition the objects need to satisfy, and what information should be returned as

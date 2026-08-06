@@ -96,9 +96,9 @@ agent can act on.
 
 ## Missing values
 
-A possibly-absent invariant has type `Option τ`. There is one notion of absence,
-`none`, stored as a nullable column; a query handles it with `match`, which
-compiles to a SQL `NULL` test. See [`LANGUAGE.md`](LANGUAGE.md).
+A possibly-absent invariant keeps its scalar type and may be absent for a given
+object, stored as a `NULL` column. A query observes absence with `defined e` and
+`undefined e`. See [`LANGUAGE.md`](LANGUAGE.md).
 
 ## What the compiler does
 

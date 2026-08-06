@@ -196,8 +196,7 @@ def checkList (Γ : Context) (t : Ty) :
 end
 
 /-- Check each output field in `Γ`, the context of the domain variables. The column names
-are distinct: each is compared with the names after it, and with those alone, so a column
-may carry the name of a domain variable or of a constant. -/
+are distinct from one another. -/
 def checkOutput (Γ : Context) :
     List (String × Input.Expr) → Result (List (Ident × Ty × Expr))
   | [] => return []
@@ -208,8 +207,7 @@ def checkOutput (Γ : Context) :
       throw s!"duplicate output column {x'}"
     return (.ident x', t, e) :: rest
 
-/-- Check the domain bindings, accumulating them in `acc`. The variables are distinct, so
-one binding of a variable is in scope wherever the variable appears. -/
+/-- Check the domain bindings, accumulating them in `acc`. The variables are distinct. -/
 def checkDomainVars (Γ : Context) (acc : List (Ident × DomainName)) :
     List (String × String) → Result (Context × List (Ident × DomainName))
 | [] => return (Γ, acc.reverse)
