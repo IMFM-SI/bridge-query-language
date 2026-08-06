@@ -123,7 +123,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
   | .error _ => false
 #guard match renderOf (json% { "domains": [["g", "Graph"]], "output": [],
                                "condition": "g.n > 3" }) with
-  | .ok s => s == "SELECT 1 FROM \"graph\" AS \"g\" WHERE (\"g\".\"n\" > 3)"
+  | .ok s => s == "SELECT 1 FROM \"graph\" AS \"c1\" WHERE (\"c1\".\"n\" > 3)"
   | .error _ => false
 #guard match renderOf (json% { "domains": [], "output": [] }) with
   | .ok s => s == "SELECT 1 WHERE 1"
@@ -150,14 +150,14 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 
 -- Identifiers are quoted; list comparisons canonicalize both sides through json().
 #guard match renderOf (jq [("n", "g.n")] "g.ds == [2, 2]") with
-  | .ok s => s.endsWith "WHERE (json(\"g\".\"ds\") = json(json_array(2, 2)))"
+  | .ok s => s.endsWith "WHERE (json(\"c1\".\"ds\") = json(json_array(2, 2)))"
   | .error _ => false
 
 -- Function calls.
 
 -- A call compiles to the SQL name registered for it.
 #guard match renderOf (jq [("n", "g.n")] "size(g.graph6) > 2") with
-  | .ok s => s.endsWith "WHERE (\"length\"(\"g\".\"graph6\") > 2)"
+  | .ok s => s.endsWith "WHERE (\"length\"(\"c1\".\"graph6\") > 2)"
   | .error _ => false
 
 -- A call is an ordinary expression: it nests, and it may be an output column.
@@ -224,7 +224,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 -- Output columns keep the order they were written in; `Lean.Json` returns an
 -- object's keys sorted.
 #guard match renderOf (jq [("zeta", "g.n"), ("alpha", "g.n")] "true") with
-  | .ok s => s.startsWith "SELECT \"g\".\"n\" AS \"zeta\", \"g\".\"n\" AS \"alpha\""
+  | .ok s => s.startsWith "SELECT \"c1\".\"n\" AS \"zeta\", \"c1\".\"n\" AS \"alpha\""
   | .error _ => false
 
 -- Postprocess fields are computed after SQL: the rendered SQL selects `"n"` alone.

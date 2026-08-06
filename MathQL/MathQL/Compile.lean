@@ -41,6 +41,8 @@ structure SqlCtx where
 structure CompileState where
   /-- The index of the next candidate alias -/
   nextAlias : Nat
+  /-- The table alias of each domain variable -/
+  varAlias : List (Ident × Alias)
   /-- Current left joins -/
   joins : List (String × Alias × List (String × SQL.Expr))
   /-- Domains that have so far been hoisted to left joins -/
@@ -70,6 +72,13 @@ def lookupHoist (d : Domain) : CompileM (Option (Alias × DomainName)) := do
 
 def storeHoist (d : Domain) (a : Alias) (dn : DomainName): CompileM Unit := do
   modify fun st => { st with hoisted := (d, (a, dn)) :: st.hoisted }
+
+def lookupVarAlias (x : Ident) : CompileM (Option Alias) := do
+  let st ← get
+  return st.varAlias.lookup x
+
+def storeVarAlias (x : Ident) (a : Alias) : CompileM Unit := do
+  modify fun st => { st with varAlias := (x, a) :: st.varAlias }
 
 /-- How many candidates `firstSafe` tries before it gives up. -/
 private def aliasFuel : Nat := 1000
@@ -112,7 +121,10 @@ def compileDomain (Γ : SqlCtx) (d : Domain) : CompileM (Alias × DomainName) :=
   | .ident x => do
     let ce ← Γ.getIdent x
     match ce with
-    | .domain d => return (.alias x.name, d)
+    | .domain d =>
+      match (← lookupVarAlias x) with
+      | some a => return (a, d)
+      | none => throw s!"unbound domain variable {x}"
     | .const _  => throw s!"{x} is not a domain variable"
 
   | .obj dn es =>
@@ -246,10 +258,6 @@ end
     names may serve as aliases. -/
 def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     Result SQL.Query := do
-  let froms ← q.vars.mapM fun (x, n) =>
-    match D.domain.lookup n with
-    | some dom => pure (dom.table, x.name)
-    | none => throw s!"unknown domain {n}"
   let Γ : SqlCtx :=
     { ident := (q.vars.map fun (x, n) => (x, .domain n)) ++
                (D.const.map fun (x, _, s) => (x, .const s))
@@ -259,7 +267,15 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     }
   let Δ : SqlCtx :=
     { Γ with ident := (q.output.map fun (x, _, _) => (x, .const (.ref x.name))) ++ Γ.ident }
-  let act : CompileM (List (SQL.Expr × String) × SQL.Expr × List (SQL.Expr × Direction)) := do
+  let act : CompileM (List (String × String) × List (SQL.Expr × String) ×
+                      SQL.Expr × List (SQL.Expr × Direction)) := do
+    let froms ← q.vars.mapM fun (x, n) =>
+      match D.domain.lookup n with
+      | some dom => do
+        let a ← freshSafeAlias Γ
+        storeVarAlias x a
+        return (dom.table, a.name)
+      | none => throw s!"unknown domain {n}"
     let output ← q.output.mapM fun (x, _, e) => do
       let s ← compileExpr Γ e
       return (s, x.name)
@@ -267,10 +283,10 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     let order ← q.order.mapM fun ((e, dir) : Expr × Direction) => do
       let s ← compileExpr Δ e
       return (s, dir)
-    return (output, cond, order)
-  match act.run { nextAlias := 1, joins := [], hoisted := [] } with
+    return (froms, output, cond, order)
+  match act.run { nextAlias := 1, varAlias := [], joins := [], hoisted := [] } with
   | .error e => throw e
-  | .ok ((output, cond, order), st) =>
+  | .ok ((froms, output, cond, order), st) =>
     let joins := st.joins.reverse.map fun (table, alias, eqs) => (table, alias.name, eqs)
     return { froms, joins, output, cond, order, limit := q.limit }
 
