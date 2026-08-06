@@ -265,8 +265,6 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
       schema := D.domain
       isSafeAlias := isSafeAlias
     }
-  let Δ : SqlCtx :=
-    { Γ with ident := (q.output.map fun (x, _, _) => (x, .const (.ref x.name))) ++ Γ.ident }
   let act : CompileM (List (String × String) × List (SQL.Expr × String) ×
                       SQL.Expr × List (SQL.Expr × Direction)) := do
     let froms ← q.vars.mapM fun (x, n) =>
@@ -276,9 +274,13 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
         storeVarAlias x a
         return (dom.table, a.name)
       | none => throw s!"unknown domain {n}"
-    let output ← q.output.mapM fun (x, _, e) => do
+    let columns ← q.output.mapM fun (x, _, e) => do
+      let a ← freshSafeAlias Γ
       let s ← compileExpr Γ e
-      return (s, x.name)
+      return (x, a.name, s)
+    let output := columns.map fun (_, a, s) => (s, a)
+    let Δ : SqlCtx :=
+      { Γ with ident := (columns.map fun (x, a, _) => (x, .const (.ref a))) ++ Γ.ident }
     let cond ← compileExpr Γ q.condition
     let order ← q.order.mapM fun ((e, dir) : Expr × Direction) => do
       let s ← compileExpr Δ e

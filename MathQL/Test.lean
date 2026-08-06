@@ -114,12 +114,12 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 
 -- The rendering of an empty clause.
 #guard match renderOf (json% { "domains": [], "output": $(entries [("x", "2 + 2")]) }) with
-  | .ok s => s == "SELECT (2 + 2) AS \"x\" WHERE 1"
+  | .ok s => s == "SELECT (2 + 2) AS \"c1\" WHERE 1"
   | .error _ => false
 #guard match renderOf (json% { "domains": [],
                                "output": $(entries [("n", "Graph['abc'].n")]) }) with
-  | .ok s => s == "SELECT \"c1\".\"n\" AS \"n\" FROM (SELECT 1)"
-                  ++ " LEFT JOIN \"graph\" AS \"c1\" ON \"c1\".\"graph6\" = 'abc' WHERE 1"
+  | .ok s => s == "SELECT \"c2\".\"n\" AS \"c1\" FROM (SELECT 1)"
+                  ++ " LEFT JOIN \"graph\" AS \"c2\" ON \"c2\".\"graph6\" = 'abc' WHERE 1"
   | .error _ => false
 #guard match renderOf (json% { "domains": [["g", "Graph"]], "output": [],
                                "condition": "g.n > 3" }) with
@@ -145,7 +145,7 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 
 -- The alias renders bare and quoted in ORDER BY.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("m", "desc")]) with
-  | .ok s => s.endsWith "ORDER BY \"m\" DESC"
+  | .ok s => s.endsWith "ORDER BY \"c3\" DESC"
   | .error _ => false
 
 -- Identifiers are quoted; list comparisons canonicalize both sides through json().
@@ -224,12 +224,13 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 -- Output columns keep the order they were written in; `Lean.Json` returns an
 -- object's keys sorted.
 #guard match renderOf (jq [("zeta", "g.n"), ("alpha", "g.n")] "true") with
-  | .ok s => s.startsWith "SELECT \"c1\".\"n\" AS \"zeta\", \"c1\".\"n\" AS \"alpha\""
+  | .ok s => s.startsWith "SELECT \"c1\".\"n\" AS \"c3\", \"c1\".\"n\" AS \"c4\""
   | .error _ => false
 
--- Postprocess fields are computed after SQL: the rendered SQL selects `"n"` alone.
+-- Postprocess fields are computed after SQL: the rendered SQL names neither the
+-- field `k` nor the function `plus`.
 #guard match renderOf (jqPost [("n", "g.n")] "true" [("k", "plus(n, 1)")]) with
-  | .ok s => (s.splitOn "\"k\"").length == 1 && (s.splitOn "\"n\"").length > 1
+  | .ok s => (s.splitOn "k").length == 1 && (s.splitOn "plus").length == 1
   | .error _ => false
 
 -- Postprocessing evaluation, over a row supplied directly.
