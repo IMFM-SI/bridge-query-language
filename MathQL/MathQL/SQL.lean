@@ -22,19 +22,20 @@ A query selecting no column renders `SELECT 1`, a query over no table renders
 without a `FROM` clause, and a hoisted join over no table renders with
 `(SELECT 1)`, a source of one row, to its left. -/
 def renderQuery (q : Query) : String :=
-  let joins := String.join <| q.joins.map fun (table, alias, eqs) =>
+  let joins := String.join <| q.joins.map fun ((table, alias, eqs) :
+      String × String × List (String × Expr)) =>
     let conds := eqs.map fun (col, e) =>
-      s!"{renderIdent alias}.{renderIdent col} = {renderExpr e}"
+      s!"{alias}.{renderIdent col} = {renderExpr e}"
     let on := if conds.isEmpty then "1" else " AND ".intercalate conds
-    s!" LEFT JOIN {renderIdent table} AS {renderIdent alias} ON {on}"
+    s!" LEFT JOIN {renderIdent table} AS {alias} ON {on}"
   let from_ := match q.froms with
     | [] => if q.joins.isEmpty then "" else " FROM (SELECT 1)"
-    | froms => " FROM " ++ ", ".intercalate (froms.map fun (table, alias) =>
-        s!"{renderIdent table} AS {renderIdent alias}")
+    | froms => " FROM " ++ ", ".intercalate (froms.map fun ((table, alias) : String × String) =>
+        s!"{renderIdent table} AS {alias}")
   let cols := match q.output with
     | [] => "1"
-    | output => ", ".intercalate (output.map fun (e, alias) =>
-        s!"{renderExpr e} AS {renderIdent alias}")
+    | output => ", ".intercalate (output.map fun ((e, alias) : Expr × String) =>
+        s!"{renderExpr e} AS {alias}")
   let order := match q.order with
     | [] => ""
     | es => " ORDER BY " ++ ", ".intercalate (es.map fun (e, d) => s!"{renderExpr e} {renderDir d}")

@@ -51,8 +51,8 @@ mutual
 /-- Render an expression to SQLite text; string literals are quoted here
 (single quotes, `''` escaping an embedded quote). -/
 def renderExpr : Expr → String
-  | .col table column => s!"{renderIdent table}.{renderIdent column}"
-  | .ref name         => renderIdent name
+  | .col table column => s!"{table}.{renderIdent column}"
+  | .ref name         => name
   | .int n            => toString n
   | .bool b           => if b then "1" else "0"
   | .str s            => "'" ++ s.replace "'" "''" ++ "'"
