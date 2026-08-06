@@ -32,10 +32,9 @@ are what a variable ranges over — and a database may declare named *constants*
 types are exactly those of the grammar above.
 
 `Int`, `Bool`, and `String` are the scalar types, stored as ordinary columns. A `String`
-is text in UTF-8 and a string literal carries any character, while every identifier —
-a variable, a column name, a domain name, a field label, a constant and a function — is
-ASCII: a letter followed by letters, digits and `_`. `List τ` and products are realized
-as JSON arrays (see *Realization*), so they too may appear in a query.
+is text in UTF-8, while every identifier is ASCII: a letter followed by letters, digits
+and `_`. `List τ` and products are realized as JSON arrays (see *Realization*), so they
+too may appear in a query.
 
 ## Expressions
 
