@@ -26,9 +26,22 @@ def Expr.jsonArray' : List Expr → Expr
 | [e] => e
 | es => .jsonArray es
 
-def Expr.isLiteral : Expr → Bool
-| .int _ | .bool _ | .str _ | .null => true
-| _ => false
+mutual
+
+/-- Does the expression take the same value in every row? -/
+def Expr.isConstant : Expr → Bool
+  | .int _ | .bool _ | .str _ | .null => true
+  | .col _ _ | .ref _ | .call _ _ => false
+  | .unop _ e | .isNull e | .isNotNull e | .json e | .jsonExtract e _ => e.isConstant
+  | .binop _ e₁ e₂ | .compare _ e₁ e₂ => e₁.isConstant && e₂.isConstant
+  | .case c t e => c.isConstant && t.isConstant && e.isConstant
+  | .jsonArray es => allConstant es
+
+def allConstant : List Expr → Bool
+  | [] => true
+  | e :: es => e.isConstant && allConstant es
+
+end
 
 /-- The SQL text of a binary operator. -/
 def renderBinop : BinaryOp → String

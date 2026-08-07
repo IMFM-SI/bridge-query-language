@@ -173,8 +173,9 @@ A database connects the language to storage. It maps:
   names for it;
 - a query's **condition** → a SQL `WHERE`; its **output** → selected expressions,
   each result cell decoded at its declared type and returned under the name the
-  query gave it; its **order** → `ORDER BY`, dropping a key that compiles to a
-  constant and omitting the clause when every key does; its **limit** → `LIMIT`.
+  query gave it; its **order** → `ORDER BY`, dropping a key whose compiled form
+  takes the same value in every row and omitting the clause when that leaves no
+  key; its **limit** → `LIMIT`.
 
 Every table and every output column of the compiled `SELECT` carries an alias the
 compiler generates — `c1`, `c2`, … — and a key of the order clause naming an output

@@ -35,9 +35,9 @@ structure SqlCtx where
   /-- Is a name free of the column names of the database, and so usable as an alias? -/
   isSafeAlias : String → Bool
 
-/-- The state of a compilation: the next alias to try, the hoisted joins (table,
-    alias, `ON` condition), and the mapping from hoisted domain expressions to
-    their alias and domain. -/
+/-- The state of a compilation: the next alias to try, the alias of each domain
+    variable, the hoisted joins (table, alias, `ON` condition), and the mapping
+    from hoisted domain expressions to their alias and domain. -/
 structure CompileState where
   /-- The index of the next candidate alias -/
   nextAlias : Nat
@@ -113,8 +113,9 @@ def mkJoin (Γ : SqlCtx) (table : String) (eqs : List (String × SQL.Expr))
 mutual
 
 /-- The alias of the row denoted by a domain expression, and its domain. The
-    result for an equal expression is stored and reused. A domain variable is
-    its own alias; an `obj` or a domain-valued field is hoisted to a join. -/
+    result for an equal expression is stored and reused. A domain variable
+    resolves to the alias allocated for its binding; an `obj` or a domain-valued
+    field is hoisted to a join. -/
 def compileDomain (Γ : SqlCtx) (d : Domain) : CompileM (Alias × DomainName) := do
   match d with
 
@@ -284,7 +285,7 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     let cond ← compileExpr Γ q.condition
     let order ← q.order.filterMapM fun ((e, dir) : Expr × Direction) => do
       let s ← compileExpr Δ e
-      return if s.isLiteral then none else some (s, dir)
+      return if s.isConstant then none else some (s, dir)
     return (froms, output, cond, order)
   match act.run { nextAlias := 1, varAlias := [], joins := [], hoisted := [] } with
   | .error e => throw e

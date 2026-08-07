@@ -149,8 +149,9 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
   | .ok s => (s.splitOn "graph6").length == 1
   | .error _ => false
 
--- An order key that compiles to a literal discriminates nothing, so it is dropped;
--- an integer would otherwise read as a column position.
+-- An order key whose compiled form is the same in every row discriminates nothing,
+-- so it is dropped; an integer would otherwise read as a column position, and
+-- `- 1` as the position -1, which fails to prepare.
 #guard match renderOf (jqOrder [("m", "g.n")] "true" [("1", "asc")]) with
   | .ok s => (s.splitOn "ORDER BY").length == 1
   | .error _ => false
@@ -160,6 +161,15 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard match renderOf (jqOrder [("m", "g.n")] "true"
                         [("1", "asc"), ("'abc'", "desc"), ("true", "asc")]) with
   | .ok s => s.endsWith "WHERE 1"
+  | .error _ => false
+#guard match renderOf (jqOrder [("m", "g.n")] "true"
+                        [("-1", "asc"), ("!true", "desc"), ("1 + 0", "asc")]) with
+  | .ok s => s.endsWith "WHERE 1"
+  | .error _ => false
+
+-- An order key that calls a database function is kept.
+#guard match renderOf (jqOrder [("m", "g.n")] "true" [("size('ab')", "asc")]) with
+  | .ok s => s.endsWith "ORDER BY \"length\"('ab') ASC"
   | .error _ => false
 
 -- The alias renders bare in ORDER BY.
