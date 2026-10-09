@@ -46,7 +46,7 @@ end
 /-- The SQL text of a binary operator. -/
 def renderBinop : BinaryOp → String
   | .and => "AND" | .or => "OR"
-  | .add => "+" | .sub => "-" | .mul => "*"
+  | .add => "+" | .sub => "-" | .mul => "*" | .div => "/"
 
 /-- The SQL text of a comparison operator. -/
 def renderCompareOp : ComparisonOp → String
