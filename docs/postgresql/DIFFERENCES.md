@@ -40,6 +40,28 @@ JSONB arrays compare length first, then elements for equal lengths. For example,
 
 Store an absent whole collection as SQL NULL, a present empty collection as `[]`, and an absent component as JSON null inside its array. On projection, convert a JSON null component back to SQL NULL so MathQL presence tests see absence. This conversion does not alter native comparisons of whole JSONB collections.
 
+## Booleans nested in lists and products
+
+Minimal request:
+
+```json
+{"domains": [], "output": [["top", "true"], ["lst", "[true, false]"], ["tup", "(true, 3)"]], "postprocess": [["p0", "tup.0"]]}
+```
+
+| Execution context | `top` | `lst` | `tup` | `p0` (type `bool`) |
+| --- | --- | --- | --- | --- |
+| SQLite SQL, then postprocessing | `true` | `[1, 0]` | `[1, 3]` | `1` |
+| PostgreSQL SQL (TYPE-02 construction) | `true` | `[true, false]` | `[true, 3]` | `true` expected |
+
+SQLite has no boolean type: `json_array` stores `1`/`0`, and `decodeCell` returns list and product JSON unchanged, converting only top-level booleans. The wrong value then reaches postprocessing. JSONB stores booleans natively.
+
+Evidence, 2026-10-30 on Windows 11:
+
+- SQLite: executed. `lake build mathql` at `b276a5e` (bundled SQLite 3.51.1), request above through `mathql graphs-small` against an empty database file. Response: `{"rows":[[["top",true],["lst",[1,0]],["tup",[1,3]],["p0",1]]]}`.
+- PostgreSQL: executed SQL only, not through MathQL. PostgreSQL 17.11 (`postgres:17` container) via `psql`. `to_jsonb(ARRAY[to_jsonb(TRUE), to_jsonb(FALSE)]::jsonb[])` gave `[true, false]`, `to_jsonb(ARRAY[to_jsonb(TRUE), to_jsonb(3::bigint)]::jsonb[])` gave `[true, 3]`, and `(… ->> 0)::boolean` gave `t`. The `p0` value depends on the Lean decoder and is unverified until M4.
+
+`HANDOFF.md` records the SQLite behavior as a bug whose fix is decided but not done. Until it is fixed, treat this as a recorded difference and do not alter PostgreSQL to emit `1`/`0`. If the SQLite fix lands, replace this section with the new SQLite outcome.
+
 ## Postprocessing is independent
 
 SQL evaluation and Lean postprocessing do not have to agree on arithmetic, structured comparisons or error propagation. In particular, **SQLite already differs from postprocessing** for a division-by-zero expression inside a list or tuple. Preserve this difference.

@@ -58,9 +58,9 @@ MathQL/
 ├── lake-manifest.json
 ├── lean-toolchain
 └── MathQL/
-    ├── Database.lean               # shared metadata/signature shapes; no constant catalogue
-    ├── GraphsSmallDB.lean          # domains and examples; no constant catalogue
-    ├── SymObSmallDB.lean           # domains and examples; no constant catalogue
+    ├── Database.lean               # shared metadata/signature shapes; no constant or SQL function catalogue
+    ├── GraphsSmallDB.lean          # domains and examples; no constant or SQL function catalogue
+    ├── SymObSmallDB.lean           # domains and examples; no constant or SQL function catalogue
     ├── Expr.lean                  # existing shared expression representation
     ├── Query.lean                 # existing checked query representation
     ├── Typing.lean                # shared checking; selected signatures supplied as data

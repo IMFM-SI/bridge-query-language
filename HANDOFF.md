@@ -27,6 +27,9 @@ These are decided. Each is to be done, in this repository first.
 
 1. **Add the division operator.** See *The division operator* below.
 2. **Fix the encoding of booleans nested in JSON.** See *The boolean encoding bug* below.
+3. **Add a PostgreSQL backend.** In progress on branch `postgres-integration`, currently
+   defining the feature and its architecture. Lean only: `bridge-mcp` and
+   `python/src/mathql_mcp` are not changed for it. Start at `docs/postgresql/README.md`.
 
 ## State
 
@@ -100,9 +103,12 @@ postprocess path — on one row and check they agree, as
 
 ## The boolean encoding bug
 
-The bug was found in the Python implementation. It has not been checked here, but this
-implementation builds tuples and lists the same way, with `json_array`, so it probably has
-it too. Confirm that first.
+The bug was found in the Python implementation. It was confirmed here on 2026-10-30 at
+`b276a5e`: `[true, false]` gives `[1,0]`, `(true, 3)` gives `[1,3]`, and its component 0
+projected in postprocess gives `1`. The cause is confirmed too: `decodeCell` in
+`MathQL/MathQL/Execute.lean` returns list and product JSON unchanged. PostgreSQL's JSONB
+keeps `true`/`false`, so `docs/postgresql/DIFFERENCES.md` records this as a backend
+difference until the SQLite fix lands.
 
 Verified on 2026-10-09 through the `bridge-mcp` server:
 
