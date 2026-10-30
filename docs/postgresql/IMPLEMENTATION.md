@@ -22,35 +22,31 @@ Acceptance:
 
 ## M2 — Separate SQLite from shared code
 
-References: CORE-01, CORE-02, CONST-01, CONST-02, FUNC-01, FUNC-02, API-01, API-02, API-03.
+References: CORE-01, CORE-02, CONST-01, FUNC-01, FUNC-02, API-01, API-02, API-03.
 
 Acceptance:
 
 - [ ] Move SQLite modules and extract Postprocess following ARCHITECTURE; no shared frontend/metadata/postprocessor imports a backend or driver.
 - [ ] Keep shared Expr/Query representations unchanged. Adapt checker inputs for selected registrations without adding per-expression annotations or changing SQLite/postprocessing type handling.
 - [ ] Select registrations before checking and derive matching function signatures/bindings from one registration set.
-- [ ] Exercise nonempty SQLite constant registrations containing names, types and SQL expressions; reject duplicate names within the selected dataset/backend at configuration time. Confirm shared dataset descriptions no longer contain constants.
-- [ ] Exercise SQLite-only/unavailable functions, wrong argument counts/types and duplicate registrations. Preserve separate postprocessing functions.
-- [ ] Verify `describe` preserves existing fields, lists only selected-backend constant signatures, and emits API-03's exact additive functions shape, including an empty array.
+- [ ] Move constants and SQL functions into SQLite's registrations; confirm shared dataset descriptions no longer contain either. Unavailable or wrongly applied functions still fail checking. Preserve separate postprocessing functions.
+- [ ] Verify `describe` preserves existing fields and lists only the selected backend's constants.
 - [ ] Preserve existing guards, legacy CLI behavior and actual SQLite execution results, including the division/postprocessing examples in DIFFERENCES.
 - [ ] Run `lake build` and `lake exe test`; add explicit execution checks rather than relabeling compile-time guards as integration tests.
 
-Independent PostgreSQL registration coverage becomes mandatory in M3; no live PostgreSQL connection is needed for those registration checks.
-
 ## M3 — PostgreSQL configuration and scalar queries
 
-References: CONST-01, CONST-02, FUNC-01, API-01, API-02, API-03, CLI-01, CLI-02, RUN-01, RUN-02, RUN-03, TYPE-01, TYPE-04, SQL-01, SQL-03.
+References: CONST-01, FUNC-01, API-01, API-02, API-03, CLI-01, CLI-02, RUN-01, RUN-02, RUN-03, TYPE-01, TYPE-04, SQL-01, SQL-03.
 
 Acceptance:
 
-- [ ] Implement dataset/backend selection and connection settings; test legacy forms, both datasets, unknown/conflicting options, wrong database, inherited settings, quoted/empty env values and invalid env lines.
-- [ ] Validate each backend's constant registrations independently in pure tests, including CONST-02 duplicate-name errors. Cover SQLite-only and PostgreSQL-only constants and the same constant name with different types and values. Verify unavailable constants fail checking, selected signatures reach `describe`, matching SQL expressions reach the compiler, and no cross-backend coverage check or fallback exists. Verify selected-backend startup errors occur before request processing.
-- [ ] Cover PostgreSQL-only and SQLite-only functions and the same name with differing signatures; checking, compilation and `describe` use the same selected registrations.
+- [ ] Implement dataset/backend selection and connection settings; test legacy forms, both datasets, unknown/conflicting options, libpq environment settings and `--connection` overriding them.
+- [ ] Verify the checker, compiler and `describe` use PostgreSQL's own constant and function registrations, with no fallback to SQLite's.
 - [ ] Implement PostgreSQL-local type helpers using the existing checked output/comparison types, metadata, selected registrations and operator rules. Pass expected types from enclosing expressions where needed; do not change shared Expr/Query or introduce a second checker.
 - [ ] Verify bool/int/string/null results, bigint boundary/overflow behavior, signed division, zero division and exact decoding. Inspect generated SQL to confirm already typed columns are used directly and casts are added only where needed, including bigint literal arithmetic and ambiguous parameters.
 - [ ] Verify quotes, backslashes and Unicode through bound values, plus separately quoted schema/object names.
 - [ ] Cover no domains/output, missing objects, single-column IDs, repeated joins, multiple base domains and alias collisions. Composite-ID coverage follows in M4 with collection support.
-- [ ] Confirm connection/metadata/configuration failures use stderr/nonzero exit; malformed JSON and query-stage failures produce JSON error responses with no credential leakage. A valid request after a query error succeeds.
+- [ ] Confirm connection/metadata/configuration failures use stderr/nonzero exit; malformed JSON and query-stage failures produce JSON error responses. A valid request after a query error succeeds.
 - [ ] Confirm read-only operation and schema isolation; PostgreSQL does not fall back to SQLite or public.
 
 ## M4 — Collections and sorting
@@ -75,13 +71,10 @@ References: IMPORT-01, IMPORT-02, IMPORT-03, RUN-03, TYPE-01, TYPE-03, TYPE-04, 
 
 Acceptance:
 
-- [ ] Add pinned importer dependencies, explicit source mappings and recursively validated conversions for all named collection fields/tables.
-- [ ] Cover invalid booleans, malformed JSON, wrong element types/product component counts, bigint overflow, empty values, nested nulls and top-level JSON-null normalization.
-- [ ] Verify source files remain read-only and failures identify table/key/column and do not commit partial imports.
-- [ ] Check row counts, exact key sets, constraints/indexes, orphan reporting, null counts and representative scalar/collection values for both datasets.
+- [ ] Add pinned importer dependencies, explicit source mappings and conversions for all named collection and boolean fields.
+- [ ] Check that a value not matching its declared type fails the import, naming table and column, without committing a partial import. Cover nested nulls and top-level JSON-null normalization.
+- [ ] Check row counts and representative scalar and collection values for both datasets.
 - [ ] Execute representative dataset examples, missing-object and two-hop traversal queries through the Lean executable.
-- [ ] In explicitly designated test schemas, prove reset requires its explicit option and rebuilding one dataset leaves the other intact. Never reset production data as an incidental test action.
-- [ ] Demonstrate bounded-memory batch/stream import of the maniplex source.
 - [ ] Run SQLite regressions and PostgreSQL live tests after import; reimport test data after storage-mapping changes.
 
 ## M6 — Final documentation and completion

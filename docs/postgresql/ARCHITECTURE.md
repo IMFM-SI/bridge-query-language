@@ -7,7 +7,7 @@ This document maps the requirements in [DESIGN.md](DESIGN.md) to runtime flow an
 ```mermaid
 flowchart TD
     Startup["Main: select dataset/backend"]
-    Validate["Validate selected registrations; open connection; read metadata"]
+    Validate["Select registrations; open connection; read metadata"]
     Ready["Read next JSON request"]
     Frontend["Shared parsing and checking<br/>Existing Expr and Query representations"]
     Choice{"Selected backend"}
@@ -30,7 +30,7 @@ flowchart TD
     RequestError --> Ready
 ```
 
-The request loop also handles `describe` using the shared dataset description and the selected backend's constant and function signatures (API-03). Startup errors and recoverable request errors are distinct (RUN-02). Each request uses the backend selected at startup; there is no fallback. Error edges are illustrative rather than exhaustive.
+The request loop also handles `describe` using the shared dataset description and the selected backend's constant signatures (API-03). Startup errors and recoverable request errors are distinct (RUN-02). Each request uses the backend selected at startup; there is no fallback. Error edges are illustrative rather than exhaustive.
 
 ## Metadata and compilation inputs
 
@@ -41,7 +41,7 @@ The request loop also handles `describe` using the shared dataset description an
 | Selected backend's functions | Names and argument/result types | Matching SQL bindings and signatures |
 | Checked query | Produces it | Translates it into SQL |
 
-“Selected backend” means SQLite or PostgreSQL, never a merged registration set. Constant and function registrations supply both the checker's signatures and the compiler's matching SQL bindings (CONST-01 and FUNC-01). Names, types and values need not match between backends. Duplicate-name validation occurs during startup, as shown in the runtime flow above.
+“Selected backend” means SQLite or PostgreSQL, never a merged registration set. Constant and function registrations supply both the checker's signatures and the compiler's matching SQL bindings (CONST-01 and FUNC-01). Names, types and values need not match between backends.
 
 Both compilers consume the existing shared Expr/Query representation. PostgreSQL handles any additional type reasoning locally and adds casts only where required (API-02); SQLite and postprocessing need no type-annotation refactor.
 
@@ -96,11 +96,11 @@ MathQL/
 | `Name`, `Ty`, `Operators`, `Expr`, `Input`, `Query`, `Result` | Existing shared language structures; no per-node type annotations added for PostgreSQL. No backend types or SQL spellings. |
 | `Parsing`, `QueryJson`, `Context`, `Rules`, `Typing` | Shared frontend; accepts selected signatures as data without changing the expression representation. |
 | `Database`, dataset descriptions | Logical metadata, descriptions/examples and postprocessing registrations. No SQL AST or driver imports. Identical physical table/column names may remain in shared metadata; differing mappings belong to backends. |
-| Each backend's `Functions`, `Constants` | Own complete SQL registrations and duplicate-name validation; imports shared definitions and its own SQL types. Does not create server functions. |
+| Each backend's `Functions`, `Constants` | Own complete SQL registrations; imports shared definitions and its own SQL types. Does not create server functions. |
 | Each backend's `Compile`, SQL modules | Own aliases, joins, SQL compilation and SQL text generation. PostgreSQL handles additional type reasoning locally using existing checked information and small helpers, as described in API-02. |
 | Each backend's `Execute`, `SchemaInfo` | Physical database operations and decoding, without postprocessing. |
 | `Postprocess` | Existing `PostEnvironment`, operator/comparison evaluators, `isDefined`, `evalPostExpr`, `evalPostprocess`; imports neither driver nor backend selector. |
-| `Backend` | Imports both implementations, selects/validates one, runs it, applies postprocessing and builds the shared response. Backends do not import this selector. |
+| `Backend` | Imports both implementations, selects one, runs it, applies postprocessing and builds the shared response. Backends do not import this selector. |
 | `Main` | Parses settings, holds the explicit dataset mapping, starts the loop and delegates work. Direct driver calls move out. |
 | `MathQL.lean` | Exports library modules; implementation modules import specific dependencies rather than the umbrella module. |
 
