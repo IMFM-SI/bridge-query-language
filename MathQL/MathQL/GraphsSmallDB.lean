@@ -79,9 +79,7 @@ def graphDomain : Schema where
 def database : Database where
   overview := "All non-isomorphic simple graphs on up to 8 vertices, each \
     annotated with a selection of graph invariants."
-  const := []
   domain := [(.domain "Graph", graphDomain)]
-  sqlFunction := []
   postFunction := []
   examples :=
     [ ("the trees on 5 vertices",

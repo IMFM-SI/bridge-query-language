@@ -34,13 +34,23 @@ References: CORE-01, CORE-02, CONST-01, FUNC-01, FUNC-02, API-01, API-02, API-03
 
 Acceptance:
 
-- [ ] Move SQLite modules and extract Postprocess following ARCHITECTURE; no shared frontend/metadata/postprocessor imports a backend or driver.
-- [ ] Keep shared Expr/Query representations unchanged. Adapt checker inputs for selected registrations without adding per-expression annotations or changing SQLite/postprocessing type handling.
-- [ ] Select registrations before checking and derive matching function signatures/bindings from one registration set.
-- [ ] Move constants and SQL functions into SQLite's registrations; confirm shared dataset descriptions no longer contain either. Unavailable or wrongly applied functions still fail checking. Preserve separate postprocessing functions.
-- [ ] Verify `describe` preserves existing fields and lists only the selected backend's constants.
-- [ ] Preserve existing guards, legacy CLI behavior and actual SQLite execution results, including the division/postprocessing examples in DIFFERENCES.
-- [ ] Run `lake build` and `lake exe test`; add explicit execution checks rather than relabeling compile-time guards as integration tests.
+- [x] Move SQLite modules and extract Postprocess following ARCHITECTURE; no shared frontend/metadata/postprocessor imports a backend or driver.
+- [x] Keep shared Expr/Query representations unchanged. Adapt checker inputs for selected registrations without adding per-expression annotations or changing SQLite/postprocessing type handling.
+- [x] Select registrations before checking and derive matching function signatures/bindings from one registration set.
+- [x] Move constants and SQL functions into SQLite's registrations; confirm shared dataset descriptions no longer contain either. Unavailable or wrongly applied functions still fail checking. Preserve separate postprocessing functions.
+- [x] Verify `describe` preserves existing fields and lists only the selected backend's constants.
+- [x] Preserve existing guards, legacy CLI behavior and actual SQLite execution results, including the division/postprocessing examples in DIFFERENCES.
+- [x] Run `lake build`, `lake exe test` and `lake exe sqlitetest`; add explicit execution checks, in the temporary `MathQL/SQLiteTest.lean`, rather than relabeling compile-time guards as integration tests.
+
+Evidence, 2026-11-09:
+
+- Layout: `Compile`, `SQLExpr`, `SQL`, `Column` moved to `MathQL/MathQL/SQLite/` (namespace `MathQL.SQLite`, SQL AST in `MathQL.SQLite.SQL`). `Execute` split into `SQLite/Execute.lean` (compile, run, decode, returning ordered rows) and `Postprocess.lean` (the interpreter, definitions unchanged). SQLite column discovery moved from `Main` to `SQLite/SchemaInfo.lean`. New: `SQLite/Constants.lean`, `SQLite/Functions.lean` (per-dataset lists, all empty), and `Backend.lean` (`Session`: dataset, selected signatures, executor; shared postprocessing and response). `Main` keeps the CLI, the dataset registry and the request loop. No forwarding modules.
+- Registrations: `Database` no longer has `const` or `sqlFunction`. A shared `Signatures` (names and MathQL types) is what `checkQuery D sig` and `describe` take; `SQLite.Registrations` holds constants with their `SQL.Expr` and functions with their SQL names, and `Registrations.signatures` derives the checker's view from the same lists. `Expr`, `Query`, the checker's rules and postprocessing are unchanged.
+- Imports: of the shared modules under `MathQL/MathQL/`, only `Backend.lean` imports a backend or driver.
+- Guards: all existing `#guard`s pass unchanged apart from passing the registrations. New guards: a registered constant checks and compiles to its SQL expression; without the registration the name is unknown; a function absent from the selected registrations fails checking; `describe` keeps its four fields and lists exactly the selected constants.
+- Execution: `lake exe sqlitetest` (`MathQL/SQLiteTest.lean`, temporary, not a default target) runs 10 checks end to end on an in-memory SQLite database, through `Session.handle` as `mathql` does: the DIFFERENCES division, postprocessing-independence, list-comparison and nested-boolean requests; signed division in SQL and postprocessing; fields with order and limit; a NULL collection, a registered SQL function and a postprocessing function; a missing object; a checking error; and `describe`. All pass; it exits nonzero on a failure.
+- CLI: the pre-refactor `mathql` binary and the new one gave byte-identical stdout, stderr and exit codes on 23 request lines (16 handwritten, including invalid JSON, a blank line and errors, plus the 7 `graphs-small` examples) against a synthetic `graphs-small`-shaped SQLite file, on `describe` against an empty `sym-ob-small` file, and for an unknown dataset name. The real dataset files are not on this machine, so dataset-content results are unverified.
+- Builds: `lake build`, `lake exe test` and `lake exe sqlitetest` pass, also on a case-sensitive filesystem; `lake build pgprobe` still builds.
 
 ## M3 — PostgreSQL configuration and scalar queries
 

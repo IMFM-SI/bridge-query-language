@@ -1,7 +1,6 @@
 import MathQL.Name
 import MathQL.Ty
 import MathQL.Context
-import MathQL.SQLExpr
 import Lean.Data.Json.Basic
 
 namespace MathQL
@@ -45,12 +44,8 @@ def Schema.getForeignKey (sch : Schema) (l : Label): Result ForeignKey :=
 structure Database where
   /-- A human overview of what the database contains -/
   overview : String
-  /-- The constants known to this database -/
-  const : List (Ident × Ty × SQL.Expr)
   /-- The domains/tables known to this database -/
   domain : List (DomainName × Schema)
-  /-- SQL functions -/
-  sqlFunction : List (Ident × (List Ty × Ty) × String)
   /-- Postprocessing functions -/
   postFunction : List (Ident × (List Ty × Ty) × (List Lean.Json → Result Lean.Json))
   /-- Example queries, each with a short note -/
@@ -61,11 +56,20 @@ def Database.getDomainContext (D : Database) : DomainContext :=
     (n, { inputField := d.column.map fun (l, f) => (l, {ty := f.ty, isPrimary := f.isPrimary})
           domainField := d.foreignKey.map fun (l, fk) => (l, fk.domain) })
 
-/-- The context for typechecking the query -/
-def Database.getSqlContext (D : Database) : Context where
+/-- The constants and SQL functions of the selected backend, as the checker sees them: names
+and MathQL types only. Each backend derives these from its own registrations, which also hold
+the matching SQL; there is no shared catalogue. -/
+structure Signatures where
+  /-- Each constant with its type -/
+  const : List (Ident × Ty) := []
+  /-- Each SQL function with its argument and result types -/
+  function : List (Ident × (List Ty × Ty)) := []
+
+/-- The context for typechecking the query against the selected backend's signatures -/
+def Database.getSqlContext (D : Database) (sig : Signatures) : Context where
   domain := D.getDomainContext
-  function := D.sqlFunction.map fun (x, t, _) => (x, t)
-  ident := D.const.map fun (x, t, _) => (x, .ty t)
+  function := sig.function
+  ident := sig.const.map fun (x, t) => (x, .ty t)
 
 /-- The context for typechecking postprocessing -/
 def Database.getPostContext (D : Database) : Context where
@@ -76,8 +80,8 @@ def Database.getPostContext (D : Database) : Context where
 
 /-- A JSON description of the database for the `describe` request: an overview, each
 domain with its doc and its queryable fields (label, type, doc),
-the constants, and example queries. -/
-def Database.describe (D : Database) : Lean.Json :=
+the selected backend's constants `const`, and example queries. -/
+def Database.describe (D : Database) (const : List (Ident × Ty)) : Lean.Json :=
   let domains := D.domain.map fun (n, dom) =>
     Lean.Json.mkObj
       [ ("name", Lean.Json.str n.name),
@@ -92,7 +96,7 @@ def Database.describe (D : Database) : Lean.Json :=
             [ ("label", Lean.Json.str l.name),
               ("domain", Lean.Json.str f.domain.name),
               ("doc", Lean.Json.str f.doc) ]).toArray) ]
-  let constants := D.const.map fun (x, t, _) =>
+  let constants := const.map fun (x, t) =>
     Lean.Json.mkObj [("name", Lean.Json.str x.name), ("type", Lean.Json.str t.render)]
   let examples := D.examples.map fun (note, q) =>
     Lean.Json.mkObj [("note", Lean.Json.str note), ("query", q)]

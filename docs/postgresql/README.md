@@ -24,4 +24,5 @@ PostgreSQL support is for the Lean implementation only. The in-repository MCP se
 - `data/graphs-small.db` and `data/sym-ob-small.db` are downloaded manually and are not in the repository (`*.db` is gitignored). If they are missing, report that instead of treating dataset checks as passed.
 - `MathQL/lakefile.lean` fetches leansqlite over SSH. On a machine without a GitHub SSH key, clone the revision pinned in `lake-manifest.json` over HTTPS into `MathQL/.lake/packages/leansqlite` rather than editing the lakefile.
 - Building the PostgreSQL backend needs libpq (found via `pkg-config`); see DEP-01.
+- Checks: `lake build` compiles the guards in `Test.lean`; `lake exe sqlitetest` runs the SQLite execution checks on an in-memory database. Both run from `MathQL/`. `SQLiteTest.lean` is temporary, like `PgProbe.lean`; see its header.
 - Development server, temporary: `docker compose -f docker/postgres/compose.yaml up -d` starts PostgreSQL 17 on `localhost:55432` (user, password and database `mathql`). Role setup and whether live tests run in CI are still undecided; ask the user.

@@ -5,7 +5,7 @@ import Lean.Data.Json
 Each consumes a single column and advances the row reader's counter, so a
 sequence of them decodes a row positionally. -/
 
-namespace MathQL.Column
+namespace MathQL.SQLite.Column
 
 /-- An INTEGER column as an `Int`. -/
 def int : SQLite.RowReader Int := do
@@ -35,4 +35,4 @@ def natList : SQLite.RowReader (List Nat) := do
   | .ok ns => return ns
   | .error e => throw (IO.userError s!"expected a JSON array of naturals: {e}")
 
-end MathQL.Column
+end MathQL.SQLite.Column

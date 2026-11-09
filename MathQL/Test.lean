@@ -11,11 +11,9 @@ def plus : List Lean.Json → Result Lean.Json
   | _ => throw "plus expects two arguments"
 
 /-- A toy database for exercising the parser, type-checker, and compiler: one
-domain `Graph` with a string primary key and three fields, one SQL function registered
-under a SQL name of its own, and one postprocessing function. -/
+domain `Graph` with a string primary key and three fields, and one postprocessing function. -/
 def toyDB : Database where
   overview := "toy"
-  const := []
   domain :=
     [(.domain "Graph",
       { table := "graph"
@@ -26,9 +24,13 @@ def toyDB : Database where
            (.label "ds", { column := "ds", ty := .list .int, isPrimary := false, doc := "" })]
         foreignKey := []
         doc := "" })]
-  sqlFunction := [(.ident "size", ([.string], .int), "length")]
   postFunction := [(.ident "plus", ([.int, .int], .int), plus)]
   examples := []
+
+/-- The toy database's SQLite registrations: one SQL function registered under a SQL name of
+its own, and no constants. -/
+def toySQLite : SQLite.Registrations where
+  function := [(.ident "size", ([.string], .int), "length")]
 
 /-- String pairs as a JSON array of two-element arrays. -/
 def entries (es : List (String × String)) : Lean.Json :=
@@ -63,18 +65,24 @@ def jqPost (output : List (String × String)) (condition : String)
     "postprocess": $(entries post)
   }
 
-/-- Does the JSON query `j` decode and type-check against `toyDB`? -/
-def elaborates (j : Lean.Json) : Bool :=
-  (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).isSome
+/-- Does the JSON query `j` decode and type-check against `toyDB` with the registrations `R`? -/
+def elaboratesWith (R : SQLite.Registrations) (j : Lean.Json) : Bool :=
+  (Input.Query.fromJson j |>.bind (checkQuery toyDB R.signatures) |>.toOption).isSome
+
+/-- Does the JSON query `j` decode and type-check against `toyDB` on SQLite? -/
+def elaborates (j : Lean.Json) : Bool := elaboratesWith toySQLite j
 
 /-- A name is a safe alias for `toyDB` when it is none of the column names of `graph`. -/
 def toySafeAlias (s : String) : Bool :=
   !["graph6", "n", "planar", "ds", "rowid", "oid", "_rowid_"].contains s.toLower
 
-/-- The SQL text of the JSON query `j` against `toyDB`, or the error. -/
-def renderOf (j : Lean.Json) : Except String String :=
-  Input.Query.fromJson j |>.bind (checkQuery toyDB)
-    |>.bind (compileQuery toyDB toySafeAlias) |>.map toString
+/-- The SQL text of the JSON query `j` against `toyDB` with the registrations `R`, or the error. -/
+def renderWith (R : SQLite.Registrations) (j : Lean.Json) : Except String String :=
+  Input.Query.fromJson j |>.bind (checkQuery toyDB R.signatures)
+    |>.bind (SQLite.compileQuery toyDB R toySafeAlias) |>.map toString
+
+/-- The SQL text of the JSON query `j` against `toyDB` on SQLite, or the error. -/
+def renderOf (j : Lean.Json) : Except String String := renderWith toySQLite j
 
 /-- Does the JSON query `j` decode, type-check, and compile against `toyDB`? -/
 def compiles (j : Lean.Json) : Bool :=
@@ -88,7 +96,7 @@ def comparison (op : ComparisonOp) (t : Ty) (a b : Lean.Json) : Option Lean.Json
     `row`, or `none` when type-checking reports an error. -/
 def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
     Option (List (String × Lean.Json)) :=
-  (Input.Query.fromJson j |>.bind (checkQuery toyDB) |>.toOption).map fun q =>
+  (Input.Query.fromJson j |>.bind (checkQuery toyDB toySQLite.signatures) |>.toOption).map fun q =>
     (evalPostprocess
       { ident := row.map fun (r : String × Lean.Json) => (.ident r.1, r.2)
         function := toyDB.postFunction.map fun (f, _, impl) => (f, impl) }
@@ -331,8 +339,36 @@ def postOf (j : Lean.Json) (row : List (String × Lean.Json)) :
 #guard postOf (jqPost [("n", "g.n")] "true" [("k", "undefined n")]) [("n", Lean.Json.null)]
        == some [("k", json% true)]
 
+-- Registrations. Constants and SQL functions come from the selected backend's registrations
+-- alone; the shared description holds neither.
+
+/-- The toy registrations with one constant, `answer`, compiling to the SQLite literal 42. -/
+def toyWithAnswer : SQLite.Registrations :=
+  { toySQLite with const := [(.ident "answer", .int, .int 42)] }
+
+-- A registered constant checks at its type and compiles to its SQL expression.
+#guard elaboratesWith toyWithAnswer (jq [("a", "answer + 1")] "true")
+#guard !elaboratesWith toyWithAnswer (jq [("a", "answer")] "answer")
+#guard match renderWith toyWithAnswer (json% { "domains": [], "output": [["a", "answer + 1"]] }) with
+  | .ok s => s == "SELECT (42 + 1) AS c1 WHERE 1"
+  | .error _ => false
+
+-- Without the registration, the same name is unknown; nothing falls back.
+#guard !elaborates (jq [("a", "answer + 1")] "true")
+
+-- A function unavailable in the selected registrations fails checking.
+#guard !elaboratesWith {} (jq [("k", "size(g.graph6)")] "true")
+
+-- `describe` keeps its fields and lists the selected registrations' constants only.
+#guard (toyDB.describe toyWithAnswer.signatures.const).getObjValD "constants"
+       == json% [{"name": "answer", "type": "int"}]
+#guard (toyDB.describe toySQLite.signatures.const).getObjValD "constants" == json% []
+#guard match toyDB.describe [] with
+  | .obj kvs => kvs.toArray.map (·.1) == #["constants", "domains", "examples", "overview"]
+  | _ => false
+
 -- SQL expression rendering, printed for review.
-#eval IO.println (toString (SQL.Expr.binop .and
+#eval IO.println (toString (SQLite.SQL.Expr.binop .and
   (.compare .gt (.col "g" "num_vertices") (.int 3)) (.col "g" "is_planar")))
 
 def main : IO Unit := pure ()

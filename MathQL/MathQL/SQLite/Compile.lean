@@ -1,7 +1,7 @@
 import MathQL.Name
 import MathQL.Expr
 import MathQL.Result
-import MathQL.SQL
+import MathQL.SQLite.SQL
 import MathQL.Database
 import MathQL.Query
 
@@ -9,7 +9,20 @@ import MathQL.Query
 expressions, and domain expressions compile to aliased table rows, hoisted into
 shared `LEFT JOIN`s. -/
 
-namespace MathQL
+namespace MathQL.SQLite
+
+/-- The constants and SQL functions selected for one dataset on SQLite: one registration set,
+from which both the checker's signatures and the compiler's SQL come. -/
+structure Registrations where
+  /-- Each constant with its type and SQLite expression -/
+  const : List (Ident × Ty × SQL.Expr) := []
+  /-- Each SQL function with its signature and SQLite function name -/
+  function : List (Ident × (List Ty × Ty) × String) := []
+
+/-- The signatures the checker needs, derived from the registrations. -/
+def Registrations.signatures (R : Registrations) : Signatures where
+  const := R.const.map fun (x, t, _) => (x, t)
+  function := R.function.map fun (f, t, _) => (f, t)
 
 /-- an alias in an SQL query -/
 inductive Alias where
@@ -255,14 +268,14 @@ termination_by es => sizeOf es
 
 end
 
-/-- Compile a type-checked query to a SQL query, with `isSafeAlias` deciding which
-    names may serve as aliases. -/
-def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
+/-- Compile a type-checked query to a SQL query, with the constants and functions of `R` and
+    `isSafeAlias` deciding which names may serve as aliases. -/
+def compileQuery (D : Database) (R : Registrations) (isSafeAlias : String → Bool) (q : Query) :
     Result SQL.Query := do
   let Γ : SqlCtx :=
     { ident := (q.vars.map fun (x, n) => (x, .domain n)) ++
-               (D.const.map fun (x, _, s) => (x, .const s))
-      function := D.sqlFunction.map (fun ⟨f, _, c⟩ => (f ,c))
+               (R.const.map fun (x, _, s) => (x, .const s))
+      function := R.function.map (fun ⟨f, _, c⟩ => (f, c))
       schema := D.domain
       isSafeAlias := isSafeAlias
     }
@@ -293,4 +306,4 @@ def compileQuery (D : Database) (isSafeAlias : String → Bool) (q : Query) :
     let joins := st.joins.reverse.map fun (table, alias, eqs) => (table, alias.name, eqs)
     return { froms, joins, output, cond, order, limit := q.limit }
 
-end MathQL
+end MathQL.SQLite

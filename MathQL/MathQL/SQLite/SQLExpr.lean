@@ -1,6 +1,6 @@
 import MathQL.Operators
 
-namespace MathQL.SQL
+namespace MathQL.SQLite.SQL
 
 /-- SQL scalar/boolean expressions. -/
 inductive Expr where

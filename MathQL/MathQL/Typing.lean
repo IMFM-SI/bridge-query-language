@@ -240,10 +240,12 @@ def checkPostprocess (Γ : Context) :
     return (x, t, e) :: ps
   | some _ => throw s!"duplicate field {x} in postprocess"
 
+/-- Check `q` against the dataset `D` and the selected backend's signatures `sig`. -/
 def checkQuery
   (D : Database)
+  (sig : Signatures)
   (q : Input.Query) : Result Query := do
-  let ⟨Γ, vars⟩ ← checkDomainVars D.getSqlContext [] (q.domains.map fun b => (b.var, b.domain))
+  let ⟨Γ, vars⟩ ← checkDomainVars (D.getSqlContext sig) [] (q.domains.map fun b => (b.var, b.domain))
   let ⟨condition, _⟩ ← check Γ (q.condition.getD (.bool true)) .bool
   let output ← checkOutput Γ q.output
   let order ← checkOrder (Γ.extendOutput output) (q.order.getD [])

@@ -1,6 +1,6 @@
-import MathQL.SQLExpr
+import MathQL.SQLite.SQLExpr
 
-namespace MathQL.SQL
+namespace MathQL.SQLite.SQL
 
 /-- A SQL `SELECT` query: the `FROM` tables with their aliases, the hoisted
 joins (each a table, its alias, and the columnwise equalities `alias.column =
@@ -45,4 +45,4 @@ def renderQuery (q : Query) : String :=
 instance : ToString Expr  := ⟨renderExpr⟩
 instance : ToString Query := ⟨renderQuery⟩
 
-end MathQL.SQL
+end MathQL.SQLite.SQL

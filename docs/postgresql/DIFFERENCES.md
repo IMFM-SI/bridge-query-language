@@ -53,7 +53,7 @@ Minimal request:
 | SQLite SQL, then postprocessing | `true` | `[1, 0]` | `[1, 3]` | `1` |
 | PostgreSQL SQL (TYPE-02 construction) | `true` | `[true, false]` | `[true, 3]` | `true` expected |
 
-SQLite has no boolean type: `json_array` stores `1`/`0`, and `decodeCell` returns list and product JSON unchanged, converting only top-level booleans. The wrong value then reaches postprocessing. JSONB stores booleans natively.
+SQLite has no boolean type: `json_array` stores `1`/`0`, and `decodeCell` (`MathQL/MathQL/SQLite/Execute.lean`) returns list and product JSON unchanged, converting only top-level booleans. The wrong value then reaches postprocessing. JSONB stores booleans natively.
 
 Evidence, 2026-10-30:
 
@@ -72,7 +72,7 @@ Minimal SQLite request evaluating the same expression in both stages:
 {"domains": [], "output": [["sql_value", "[1 / 0, 1]"]], "postprocess": [["post_value", "[1 / 0, 1]"]]}
 ```
 
-Expected response from the current implementation, based on the code paths below:
+Response from the current implementation, executed by `lake exe sqlitetest` (`MathQL/SQLiteTest.lean`, "division by zero inside a list") and through `mathql`:
 
 ```json
 {"rows": [[["sql_value", [null, 1]], ["post_value", null]]]}
@@ -82,10 +82,10 @@ The tuple expression `(1 / 0, 1)` has the same distinction: SQLite returns `[nul
 
 Code evidence:
 
-- `MathQL/MathQL/Compile.lean`, `compileExpr`: both `.list` and `.tuple` compile to `.jsonArray`; division compiles to the ordinary binary operator.
-- `MathQL/MathQL/SQLExpr.lean`, `renderBinop` and `renderExpr`: this produces `json_array((1 / 0), 1)`. SQLite's division returns SQL NULL, and `json_array` retains it as a null element alongside `1`.
-- `MathQL/MathQL/Execute.lean`, `decodeCell`: parses the resulting JSON text, preserving `[null, 1]`.
-- In that same file, `evalBinaryOp` throws on a zero divisor. The `.list` and `.tuple` branches of `evalPostExpr` use `mapM`, so that error aborts evaluation of the entire collection. `evalPostprocess` then converts the failed entry to JSON `null`; it does not catch errors separately for each element.
+- `MathQL/MathQL/SQLite/Compile.lean`, `compileExpr`: both `.list` and `.tuple` compile to `.jsonArray`; division compiles to the ordinary binary operator.
+- `MathQL/MathQL/SQLite/SQLExpr.lean`, `renderBinop` and `renderExpr`: this produces `json_array((1 / 0), 1)`. SQLite's division returns SQL NULL, and `json_array` retains it as a null element alongside `1`.
+- `MathQL/MathQL/SQLite/Execute.lean`, `decodeCell`: parses the resulting JSON text, preserving `[null, 1]`.
+- `MathQL/MathQL/Postprocess.lean`: `evalBinaryOp` throws on a zero divisor. The `.list` and `.tuple` branches of `evalPostExpr` use `mapM`, so that error aborts evaluation of the entire collection. `evalPostprocess` then converts the failed entry to JSON `null`; it does not catch errors separately for each element.
 
 This is an evaluation-error distinction, not a rule that every collection containing a null collapses. A previously decoded null used as an element can remain a null element when no evaluation error is raised. PostgreSQL SQL division by zero still raises a query error under the separate decision above. No changes to postprocessing or agreement between SQL and postprocessing are required.
 

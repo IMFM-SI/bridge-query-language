@@ -23,3 +23,8 @@ lean_exe test where
 -- need libpq. See the header of `PgProbe.lean`.
 lean_exe pgprobe where
   root := `PgProbe
+
+-- TEMPORARY: M2 SQLite execution checks on an in-memory database; see the header of
+-- `SQLiteTest.lean`.
+lean_exe sqlitetest where
+  root := `SQLiteTest

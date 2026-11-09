@@ -196,8 +196,9 @@ MathQL is a standalone Lean package. Expressions are parsed by a parser combinat
 (`Parsing.lean`); a whole query is decoded from JSON (`QueryJson.lean`); it is
 elaborated by the bidirectional judgement into an intrinsically-typed `Expr`
 (`Rules.lean`, `Typing.lean`), so ill-typed queries are rejected; and it is
-compiled to a single SQL `SELECT` (`Compile.lean`, `SQL.lean`). The result cells
-are decoded at their declared types into JSON (`Execute.lean`). One `Expr` serves
+compiled to a single SQL `SELECT` (`SQLite/Compile.lean`, `SQLite/SQL.lean`). The result cells
+are decoded at their declared types into JSON (`SQLite/Execute.lean`), and the postprocess
+entries are evaluated in Lean (`Postprocess.lean`). One `Expr` serves
 every clause under two interpretations: `compileExpr` gives the SQL image of the
 condition, the output and the order, and `evalPostExpr` evaluates a postprocess entry
 over the decoded row.

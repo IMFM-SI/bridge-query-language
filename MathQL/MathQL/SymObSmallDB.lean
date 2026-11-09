@@ -115,14 +115,12 @@ def database : Database where
     1-skeleta, 1-coskeleta, and canonical labelings. A maniplex links to a \
     CanonicalLabeling through flag_graph, skeleton, and coskeleton; a labeling \
     links to its Graph."
-  const := []
   domain :=
     [ (.domain "Maniplex", maniplexDomain),
       (.domain "CanonicalLabeling", canonicalLabelingDomain),
       (.domain "Graph", graphDomain),
       (.domain "LabelingParameters", labelingParametersDomain),
       (.domain "GraphExternalReference", graphExternalReferenceDomain) ]
-  sqlFunction := []
   postFunction := []
   examples :=
     [ ("orientable polytopal maniplexes of type (4, 8, 8)",
