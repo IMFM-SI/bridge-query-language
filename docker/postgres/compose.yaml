@@ -1,0 +1,31 @@
+# TEMPORARY development PostgreSQL for the PostgreSQL backend work (M1 driver checks).
+# Not a decided provisioning setup; see docs/postgresql/README.md.
+#
+#   docker compose -f docker/postgres/compose.yaml up -d
+#   docker compose -f docker/postgres/compose.yaml down        # keep data
+#   docker compose -f docker/postgres/compose.yaml down -v     # discard data
+#
+# Connect with libpq settings:
+#   PGHOST=localhost PGPORT=55432 PGUSER=mathql PGPASSWORD=mathql PGDATABASE=mathql
+# The password is a throwaway for a local, loopback-only server.
+name: mathql-postgres
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mathql
+      POSTGRES_PASSWORD: mathql
+      POSTGRES_DB: mathql
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mathql -d mathql"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

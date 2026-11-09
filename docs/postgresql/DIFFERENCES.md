@@ -55,7 +55,7 @@ Minimal request:
 
 SQLite has no boolean type: `json_array` stores `1`/`0`, and `decodeCell` returns list and product JSON unchanged, converting only top-level booleans. The wrong value then reaches postprocessing. JSONB stores booleans natively.
 
-Evidence, 2026-10-30 on Windows 11:
+Evidence, 2026-10-30:
 
 - SQLite: executed. `lake build mathql` at `b276a5e` (bundled SQLite 3.51.1), request above through `mathql graphs-small` against an empty database file. Response: `{"rows":[[["top",true],["lst",[1,0]],["tup",[1,3]],["p0",1]]]}`.
 - PostgreSQL: executed SQL only, not through MathQL. PostgreSQL 17.11 (`postgres:17` container) via `psql`. `to_jsonb(ARRAY[to_jsonb(TRUE), to_jsonb(FALSE)]::jsonb[])` gave `[true, false]`, `to_jsonb(ARRAY[to_jsonb(TRUE), to_jsonb(3::bigint)]::jsonb[])` gave `[true, 3]`, and `(… ->> 0)::boolean` gave `t`. The `p0` value depends on the Lean decoder and is unverified until M4.
@@ -92,3 +92,5 @@ This is an evaluation-error distinction, not a rule that every collection contai
 ## Additional differences to verify
 
 As implementation proceeds, add minimal queries, actual outcomes, tested versions and test references for null sort order, integer range/overflow, text collation, JSONB projection and presence tests, and nested collection comparisons. Keep untested expectations clearly distinguished from executed regression results.
+
+Driver-level evidence only, 2026-11-09, PostgreSQL 17.11, `MathQL/PgProbe.lean` (hand-written SQL, not compiled MathQL): `SELECT 1::bigint / 0` fails with SQLSTATE `22012`; `SELECT $1::bigint + 1` with the bigint maximum fails with `22003`; `(value ->> i)::bigint`, `(value ->> i)::boolean`, `->>` and `NULLIF(value -> i, 'null'::jsonb)` project as TYPE-03 describes. The MathQL-level cases above remain unexecuted on PostgreSQL.

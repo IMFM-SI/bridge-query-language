@@ -11,7 +11,8 @@ reading order and how to resolve conflicts with the design.
 - Lean only. Do not change `python/src/mathql_mcp` or `../bridge-mcp` for this work.
 - The current phase is defining the feature and its architecture in `docs/postgresql/`.
   How tests are laid out is deliberately deferred; do not design a test harness yet.
-- How PostgreSQL is provisioned (likely a container) is not decided. Ask; do not invent one.
+- A temporary PostgreSQL dev server is in `docker/postgres/compose.yaml`.
+  Role setup and CI are not decided. Ask; do not invent them.
 
 ## Environment
 

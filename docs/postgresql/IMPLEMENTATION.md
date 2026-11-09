@@ -14,11 +14,19 @@ Read current Main, Database, Compile, SQLExpr, SQL, Execute, Column and the chec
 
 Acceptance:
 
-- [ ] Run `lake build` and `lake exe test` from `MathQL/`; record baseline failures before changes.
-- [ ] Pin and build a compatible driver without changing Lean or removing SQLite.
-- [ ] Demonstrate a bound query and correct scalar, null and JSONB decoding into `Lean.Json`, preserving integers exactly across the PostgreSQL `bigint` range.
-- [ ] Demonstrate that a valid query succeeds after a failed query and that results/connections are released. Use the driver's normal execution mode; explicit transactions are not required for this check.
-- [ ] Record tested Lean/driver/PostgreSQL versions and Windows libpq include/library/DLL setup. If the driver checks fail, report it before proceeding with full integration.
+- [x] Run `lake build` and `lake exe test` from `MathQL/`; record baseline failures before changes.
+- [x] Pin and build a compatible driver without changing Lean or removing SQLite.
+- [x] Demonstrate a bound query and correct scalar, null and JSONB decoding into `Lean.Json`, preserving integers exactly across the PostgreSQL `bigint` range.
+- [x] Demonstrate that a valid query succeeds after a failed query and that results/connections are released. Use the driver's normal execution mode; explicit transactions are not required for this check.
+- [x] Record tested Lean/driver/PostgreSQL versions and the build setup (see DEP-01). If the driver checks fail, report it before proceeding with full integration.
+
+Evidence, 2026-11-09:
+
+- Baseline before changes: `lake build` succeeded (140 jobs); `lake exe test` exited 0. No failures. Both still pass with the driver required, because no default target imports `Postgres`.
+- Driver: leanpostgres `v0.8.1` (`7077523`), with its dependency lean-json `v0.3.1` (`ac33b33`), pinned in `MathQL/lake-manifest.json`. leansqlite and `leanprover/lean4:v4.35.0-rc2` are unchanged. `lake update` rewrites `lean-toolchain` to the driver's `v4.35.0`; that change was reverted, and must be reverted again after any future `lake update`.
+- Build setup: libpq 16.15 found via `pkg-config`, no extra environment variables. `lake build Postgres`, `lake build` and `lake exe test` succeed.
+- Server: PostgreSQL 17.11 (`postgres:17-alpine`) from the temporary `docker/postgres/compose.yaml`, reached at `localhost:55432`.
+- Checks: the temporary executable `MathQL/PgProbe.lean` (`lake exe pgprobe`, not a default target; command in its header) passed 21 of 21. It covers bound bigint/text/boolean parameters including quotes, backslashes and Unicode; bigint minimum and maximum exact through text decoding and `columnInt64`; overflow as SQLSTATE `22003`; SQL NULL versus JSONB `null`; nested JSONB with empty arrays, nulls, booleans, strings and bigint extremes decoded through `Lean.Json.parse`; bound `$1::jsonb` versus `to_jsonb(text)`; the TYPE-02 constructor and TYPE-03 projections; division by zero (`22012`), syntax (`42601`) and missing-table (`42P01`) errors each followed by a successful query on the same connection in autocommit mode; a dropped connection disappearing from `pg_stat_activity`; and RSS staying flat (74952 kB → 74172 kB) over 500 one-megabyte results.
 
 ## M2 — Separate SQLite from shared code
 
